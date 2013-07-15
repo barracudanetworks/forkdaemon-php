@@ -27,6 +27,7 @@ class fork_daemon
 	 *
 	 * @access public
 	 */
+	const LOG_LEVEL_ALL = -1;
 	const LOG_LEVEL_CRIT = 2;
 	const LOG_LEVEL_WARN = 4;
 	const LOG_LEVEL_INFO = 6;
@@ -69,7 +70,7 @@ class fork_daemon
 	 * @access private
 	 * @var integer $child_function_timeout
 	 */
-	private $child_function_timeout = array(self::DEFAULT_BUCKET => "");
+	private $child_function_timeout = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the parent invokes when a child is spawned
@@ -122,6 +123,14 @@ class fork_daemon
 	 * @var bool $child_single_work_item
 	 */
 	private $child_single_work_item = array(self::DEFAULT_BUCKET => false);
+
+	/**
+	 * Function to call when there is a message to log
+	 * @access private
+	 * @var array $log_function array of callables index by severity
+	 * called with call_user_func($log_function, $message)
+	 */
+	private $log_function = null;
 
 	/**************** SERVER CONTROLS ****************/
 	/**
@@ -504,6 +513,25 @@ class fork_daemon
 		return false;
 	}
 	
+	/**
+	 * Allows the app to set the call back function for logging
+	 * @access public
+	 * @param callable name of function to be called.
+	 * @param int $severity the severity level
+	 * @return bool true if the callback was successfully registered, false if it failed
+	 */
+	public function register_logging($function_name, $severity)
+	{
+		/* call parent function */
+		if ( method_exists($this, $function_name) || function_exists($function_name) )
+		{
+			$this->log_function[$severity] = $function_name;
+			return true;
+		}
+
+		return false;
+	}
+
 	/************ NORMAL FUNCTION DEFS ************/
 
 	/**
@@ -1201,6 +1229,7 @@ class fork_daemon
 	 * This function will try using the objects inherited function if it exists.  If not,
 	 * it'll look for a declared function of the given name.
 	 *
+	 * @access private
 	 * @param string $function_name the name of the function to invoke
 	 * @param array $parameters an array of parameters to pass to function
 	 * @param bool $optional is set to true, don't error if function_name not available
@@ -1234,13 +1263,24 @@ class fork_daemon
 	/**
 	 * Log a message
 	 *
-	* @param string $message the text to log
-	* @param int $severity the severity of the message
-	* @param bool true on success, false on error
+	 * @access private
+	 * @param string $message the text to log
+	 * @param int $severity the severity of the message
+	 * @param bool true on success, false on error
 	 */
 	private function log($message, $severity)
 	{
-		// TODO: add ability to set callback function to handle logging
+		if (!empty($this->log_function))
+		{
+			if (isset($this->log_function[$severity]))
+			{
+				return call_user_func($this->log_function[$severity], $message);
+			}
+			elseif (isset($this->log_function[self::LOG_LEVEL_ALL]))
+			{
+				return call_user_func($this->log_function[self::LOG_LEVEL_ALL], $message);
+			}
+		}
 
 		return true;
 	}
