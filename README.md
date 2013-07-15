@@ -11,3 +11,7 @@ Check out the examples in the examples directory
 ```
 php example/blocking.php
 ```
+
+## License
+Copyright 2013 Barracuda Networks, Inc.
+Licensed under the MIT License
