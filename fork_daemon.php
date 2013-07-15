@@ -1281,6 +1281,11 @@ class fork_daemon
 				return call_user_func($this->log_function[self::LOG_LEVEL_ALL], $message);
 			}
 		}
+		// Barracuda specific logging class, to keep internal code working
+		elseif (method_exists('Log', 'message'))
+		{
+			return Log::message($message, $severity);
+		}
 
 		return true;
 	}
