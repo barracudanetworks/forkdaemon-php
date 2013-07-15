@@ -355,6 +355,7 @@ class fork_daemon
 		$this->parent_function_fork[$bucket] = $this->parent_function_fork[self::DEFAULT_BUCKET];
 		$this->child_function_sighup[$bucket] = $this->child_function_sighup[self::DEFAULT_BUCKET];
 		$this->child_function_exit[$bucket] = $this->child_function_exit[self::DEFAULT_BUCKET];
+		$this->child_function_timeout[$bucket] = $this->child_function_timeout[self::DEFAULT_BUCKET];
 		$this->parent_function_child_exited[$bucket] = $this->parent_function_child_exited[self::DEFAULT_BUCKET];
 		$this->work_units[$bucket] = array();
 		$this->buckets[$bucket] = $bucket;
