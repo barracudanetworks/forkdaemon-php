@@ -73,6 +73,13 @@ class fork_daemon
 	private $child_function_timeout = array(self::DEFAULT_BUCKET => '');
 
 	/**
+	 * Function the parent invokes before forking a child
+	 * @access private
+	 * @var integer $parent_function_prefork
+	 */
+	private $parent_function_prefork = '';
+
+	/**
 	 * Function the parent invokes when a child is spawned
 	 * @access private
 	 * @var integer $parent_function_fork
@@ -101,7 +108,7 @@ class fork_daemon
 	 * @var integer $child_function_sighup
 	 */
 	private $child_function_sighup = array(self::DEFAULT_BUCKET => '');
-	
+
 	/**
 	 * Max number of seconds to wait for a child process
 	 * exit once it has been requested to exit
@@ -381,6 +388,18 @@ class fork_daemon
 	}
 
 	/**
+	 * Allows the app to set call back functions to cleanup resources before forking
+	 * @access public
+	 * @param array names of functions to be called.
+	 * @return bool true if the callback was successfully registered, false if it failed
+	 */
+	public function register_parent_prefork($function_names)
+	{
+		$this->parent_function_prefork = $function_names;
+		return true;
+	}
+
+	/**
 	 * Allows the app to set the call back function for when a child process is spawned
 	 * @access public
 	 * @param string name of function to be called.
@@ -513,7 +532,7 @@ class fork_daemon
 
 		return false;
 	}
-	
+
 	/**
 	 * Allows the app to set the call back function for logging
 	 * @access public
@@ -560,6 +579,9 @@ class fork_daemon
 		pcntl_signal(SIGQUIT, SIG_IGN);
 		pcntl_signal(SIGTRAP, SIG_IGN);
 		pcntl_signal(SIGSYS,  SIG_IGN);
+
+		/* add barracuda specific prefork functions (doesn't hurt anything) */
+		$this->parent_function_prefork = array('db_clear_connection_cache', 'memcache_clear_connection_cache');
 	}
 
 	/**
@@ -607,7 +629,7 @@ class fork_daemon
 			);
 		}
 	}
-	
+
 	/**
 	 * Handle parent registered sigchild callbacks.
 	 *
@@ -651,7 +673,7 @@ class fork_daemon
 						// respawn helper processes
 						if ($child['status'] == self::HELPER && $child['respawn'] === true)
 						{
-							Log::message('Helper process ' . $child_pid . ' died, respawning', LOG_LEVEL_INFO);
+							$this->log('Helper process ' . $child_pid . ' died, respawning', self::LOG_LEVEL_INFO);
 							$this->helper_process_spawn($child['function'], $child['arguments'], $child['identifier'], true);
 						}
 					}
@@ -665,7 +687,7 @@ class fork_daemon
 			}
 		}
 	}
-	
+
 	/**
 	 * Handle both parent and child registered sigint callbacks
 	 *
@@ -679,7 +701,7 @@ class fork_daemon
 		// kill child processes
 		if (self::$parent_pid == getmypid())
 		{
-			foreach ($this->forked_children as $pid => $pid_info)
+			foreach ($this->forked_children as $pid => &$pid_info)
 			{
 				// tell helpers not to respawn
 				if ($pid_info['status'] == self::HELPER)
@@ -690,10 +712,10 @@ class fork_daemon
 			}
 
 			sleep(1);
-			
+
 			// checking for missed sigchild
 			$this->signal_handler_sigchild(SIGCHLD);
-			
+
 			$start_time = time();
 
 			// wait for child processes to go away
@@ -705,7 +727,7 @@ class fork_daemon
 					{
 						$this->log('force killing child pid: ' . $pid, self::LOG_LEVEL_INFO);
 						posix_kill($pid, SIGKILL);
-						
+
 						// remove the killed process from being tracked
 						unset($this->forked_children[$pid]);
 					}
@@ -724,7 +746,8 @@ class fork_daemon
 		else
 		{
 			// invoke child cleanup callback
-			$this->invoke_callback($this->child_function_exit[$this->child_bucket], $parameters = array($this->child_bucket), true);
+			if (isset($this->child_bucket))
+				$this->invoke_callback($this->child_function_exit[$this->child_bucket], $parameters = array($this->child_bucket), true);
 		}
 
 		exit(-1);
@@ -897,7 +920,7 @@ class fork_daemon
 		}
 		return $count;
 	}
-	
+
 	/**
 	 * Check if the current processes is a child
 	 *
@@ -921,7 +944,7 @@ class fork_daemon
 	 * @param string $identifier helper process unique identifier
 	 * @param bool $respawn whether to respawn the helper process when it dies
 	 */
-	public function helper_process_spawn($function_name, $arguments, $idenfifier = '', $respawn = true)
+	public function helper_process_spawn($function_name, $arguments = array(), $idenfifier = '', $respawn = true)
 	{
 		if ((is_array($function_name) && method_exists($function_name[0], $function_name[1])) || function_exists($function_name))
 		{
@@ -937,14 +960,14 @@ class fork_daemon
 			{
 				declare(ticks = 1);
 
-				Log::message('Calling function ' . $function_name, LOG_LEVEL_DEBUG);
+				$this->log('Calling function ' . $function_name, self::LOG_LEVEL_DEBUG);
 				call_user_func_array($function_name, $arguments);
 				exit(0);
 			}
 			else
 			{
 				declare(ticks = 1);
-				Log::message('Spawned new helper process with pid ' . $pid, LOG_LEVEL_INFO);
+				$this->log('Spawned new helper process with pid ' . $pid, self::LOG_LEVEL_INFO);
 
 				$this->forked_children[$pid] = array(
 					'ctime' => time(),
@@ -959,7 +982,7 @@ class fork_daemon
 		}
 		else
 		{
-			Log::message("Unable to spawn undefined helper function '" . $function_name . "'", LOG_LEVEL_ERR);
+			$this->log("Unable to spawn undefined helper function '" . $function_name . "'", self::LOG_LEVEL_ERR);
 		}
 	}
 
@@ -976,7 +999,7 @@ class fork_daemon
 		{
 			if ($child['status'] == self::HELPER && $child['identifier'] == $identifier)
 			{
-				Log::message('Forcing helper process \'' . $identifier . '\' with pid ' . $pid . ' to respawn', LOG_LEVEL_INFO);
+				$this->log('Forcing helper process \'' . $identifier . '\' with pid ' . $pid . ' to respawn', self::LOG_LEVEL_INFO);
 				posix_kill($pid, SIGKILL);
 			}
 		}
@@ -1102,13 +1125,11 @@ class fork_daemon
 	 */
 	private function fork_work_unit($work_unit, $identifier = '', $bucket = self::DEFAULT_BUCKET)
 	{
-		// clear all database connections if the database engine is enabled
-		if (function_exists('db_clear_connection_cache'))
-			db_clear_connection_cache();
-
-		// clear all memcache connections if memcache is in use
-		if (function_exists('memcache_clear_connection_cache'))
-			memcache_clear_connection_cache();
+		// prefork callback
+		foreach ($this->parent_function_prefork as $function)
+		{
+			$this->invoke_callback($function, array(), true);
+		}
 
 		// turn off signals temporarily to prevent a SIGCHLD from interupting the parent before $this->forked_children is updated
 		declare(ticks = 0);
@@ -1285,7 +1306,7 @@ class fork_daemon
 		// Barracuda specific logging class, to keep internal code working
 		elseif (method_exists('Log', 'message'))
 		{
-			return Log::message($message, $severity);
+			return $this->log($message, $severity);
 		}
 
 		return true;
