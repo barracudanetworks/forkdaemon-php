@@ -101,7 +101,7 @@ class fork_daemon
 	 * @var integer $child_function_sighup
 	 */
 	private $child_function_sighup = array(self::DEFAULT_BUCKET => '');
-	
+
 	/**
 	 * Max number of seconds to wait for a child process
 	 * exit once it has been requested to exit
@@ -513,7 +513,7 @@ class fork_daemon
 
 		return false;
 	}
-	
+
 	/**
 	 * Allows the app to set the call back function for logging
 	 * @access public
@@ -607,7 +607,7 @@ class fork_daemon
 			);
 		}
 	}
-	
+
 	/**
 	 * Handle parent registered sigchild callbacks.
 	 *
@@ -665,7 +665,7 @@ class fork_daemon
 			}
 		}
 	}
-	
+
 	/**
 	 * Handle both parent and child registered sigint callbacks
 	 *
@@ -685,15 +685,15 @@ class fork_daemon
 				if ($pid_info['status'] == self::HELPER)
 					$pid_info['respawn'] = false;
 
-				$this->log('requestsing child exit for pid: ' . $pid, self::LOG_LEVEL_INFO);
+				$this->log('requesting child exit for pid: ' . $pid, self::LOG_LEVEL_INFO);
 				posix_kill($pid, SIGINT);
 			}
 
 			sleep(1);
-			
+
 			// checking for missed sigchild
 			$this->signal_handler_sigchild(SIGCHLD);
-			
+
 			$start_time = time();
 
 			// wait for child processes to go away
@@ -705,7 +705,7 @@ class fork_daemon
 					{
 						$this->log('force killing child pid: ' . $pid, self::LOG_LEVEL_INFO);
 						posix_kill($pid, SIGKILL);
-						
+
 						// remove the killed process from being tracked
 						unset($this->forked_children[$pid]);
 					}
@@ -897,7 +897,7 @@ class fork_daemon
 		}
 		return $count;
 	}
-	
+
 	/**
 	 * Check if the current processes is a child
 	 *
