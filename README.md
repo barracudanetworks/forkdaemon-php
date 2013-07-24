@@ -1,5 +1,3 @@
-forkdaemon-php
-==============
 #PHP Fork Daemon
 A library to set up forking daemons in PHP and the ability to create and assign work to buckets.
 
