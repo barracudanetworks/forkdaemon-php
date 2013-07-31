@@ -1306,7 +1306,7 @@ class fork_daemon
 		// Barracuda specific logging class, to keep internal code working
 		elseif (method_exists('Log', 'message'))
 		{
-			return $this->log($message, $severity);
+			return Log::message($message, $severity);
 		}
 
 		return true;
