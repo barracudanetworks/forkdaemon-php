@@ -11,6 +11,9 @@ A library to make setup and management of forking daemons in PHP easy.
 Check out the examples in the examples directory
 ``php example/blocking.php``
 
+## Caveats
+-	You need to specify ``declare(ticks=1);`` before inclusion of the fork-daemon library, otherwise signals wont be handled. Ref: php.net/declare
+
 ## License
 Copyright 2013 Barracuda Networks, Inc.
 Licensed under the MIT License

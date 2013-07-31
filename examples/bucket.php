@@ -1,5 +1,7 @@
 <?php
 
+declare(ticks=1);
+
 require_once(__DIR__ . '/../fork_daemon.php');
 
 /* setup forking daemon */
