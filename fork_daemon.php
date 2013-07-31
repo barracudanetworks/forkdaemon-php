@@ -139,6 +139,14 @@ class fork_daemon
 	 */
 	private $log_function = null;
 
+	/**
+	 * Stores whether or not we have received an exit request
+	 * @access private
+	 * @default false
+	 * @var bool $exit_request_status
+	 */
+	private $exit_request_status = false;
+
 	/**************** SERVER CONTROLS ****************/
 	/**
 	 * Upper limit on the number of children started.
@@ -698,6 +706,9 @@ class fork_daemon
 	 */
 	public function signal_handler_sigint($signal_number)
 	{
+		// log that we received an exit request
+		$this->received_exit_request(true);
+
 		// kill child processes
 		if (self::$parent_pid == getmypid())
 		{
@@ -751,6 +762,30 @@ class fork_daemon
 		}
 
 		exit(-1);
+	}
+
+	/**
+	 * Check or set if we have recieved an exit request
+	 *
+	 * @param boolen $requested (optional) have we received the request
+	 * @return current exit request status
+	 */
+	public function received_exit_request($requested = null)
+	{
+		// if we are retreiving the value of the exit request
+		if ($requested === null)
+		{
+			return $this->exit_request_status;
+		}
+
+		// ensure we have good data, or set to false if not
+		if (! is_bool($requested))
+		{
+			$requested = false;
+		}
+
+		// set and return the ne value
+		return ($this->exit_request_status = $requested);
 	}
 
 	/**
