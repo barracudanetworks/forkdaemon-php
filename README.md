@@ -12,7 +12,7 @@ Check out the examples in the examples directory
 ``php example/blocking.php``
 
 ## Caveats
--	You need to specify ``declare(ticks=1);`` before inclusion of the fork-daemon library, otherwise signals wont be handled. Ref: php.net/declare
+-	You need to specify ``declare(ticks=1);`` before inclusion of the fork-daemon library, otherwise signals wont be handled. Reference: [PHP Documentation](http://us3.php.net/manual/en/control-structures.declare.php#control-structures.declare.ticks)
 
 ## License
 Copyright 2013 Barracuda Networks, Inc.
