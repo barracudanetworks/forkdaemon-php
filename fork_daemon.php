@@ -1041,6 +1041,65 @@ class fork_daemon
 	}
 
 	/**
+	 * Kill a specified child(ren) by pid
+	 *
+	 * Note: This method will block until all requested pids have exited
+	 *
+	 * @param int $pids the child pid to kill
+	 * @param int $kill_delay how many seconds to wait before sending sig kill on stuck processes
+	 * @access public
+	 */
+	public function kill_child_pid($pids, $kill_delay = 30)
+	{
+		if (! is_array($pids)) $pids = array($pids);
+
+		// send int sigs to the children
+		foreach ($pids as $index => $pid)
+		{
+			// make sure we own this pid
+			if (! array_key_exists($pid, $this->forked_children))
+			{
+				$this->log('Skipping kill request on pid ' . $pid . ' because we dont own it', self::LOG_LEVEL_INFO);
+				unset($pids[$index]);
+				continue;
+			}
+
+			$this->log('Asking pid ' . $pid . ' to exit via sigint', self::LOG_LEVEL_INFO);
+			posix_kill($pid, SIGINT);
+		}
+
+		// store the requst time
+		$request_time = microtime(true);
+		$time = 0;
+
+		// make sure the children exit
+		while ((count($pids) > 0) && ($time >= $kill_delay))
+		{
+			foreach ($pids as $index => $pid)
+			{
+				// check if the pid exited gracefully
+				if (! array_key_exists($pid, $this->forked_children))
+				{
+					$this->log('Pid ' . $pid . ' has exited gracefully', self::LOG_LEVEL_INFO);
+					unset($pids[$index]);
+					continue;
+				}
+
+				$time = microtime(true) - $request_time;
+				if ($time < $kill_delay)
+				{
+					$this->log('Waiting ' . round($time, 0) . ' seconds for ' . count($pids) . ' to exit gracefully', self::LOG_LEVEL_INFO);
+					sleep(1);
+					continue;
+				}
+
+				$this->log('Force killing pid ' . $pid, self::LOG_LEVEL_INFO);
+				posix_kill($pid, SIGKILL);
+			}
+		}
+	}
+
+	/**
 	 * Process work on the work queue
 	 *
 	 * This function will take work sets and hand them off to children.
