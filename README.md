@@ -3,6 +3,7 @@ A library to make setup and management of forking daemons in PHP easy.
 
 ## Features
 -   Easy management of PHP forks
+-   Return result of children by callback or polling parent for results
 -   Splitting work units into buckets
 -   Preforking callbacks to manage resources before forking
 -   Dynamic setting of number of children / work per child
