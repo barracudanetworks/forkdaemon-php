@@ -1448,6 +1448,8 @@ class fork_daemon
 		}
 		else
 		{
+			if (! isset($this->results[$bucket]) || ! is_array($this->results[$bucket]))
+				$this->results[$bucket] = array();
 			$this->results[$bucket] += $results;
 		}
 
