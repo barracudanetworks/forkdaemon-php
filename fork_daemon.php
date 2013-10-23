@@ -403,6 +403,7 @@ class fork_daemon
 		$this->parent_function_child_exited[$bucket] = $this->parent_function_child_exited[self::DEFAULT_BUCKET];
 		$this->work_units[$bucket] = array();
 		$this->buckets[$bucket] = $bucket;
+		$this->results[$bucket] = array();
 	}
 
 	/**
@@ -707,7 +708,6 @@ class fork_daemon
 				{
 					// get child pid that exited
 					$child_pid = pcntl_waitpid(0, $status, WNOHANG);
-
 					if ($child_pid > 0)
 					{
 						// child exited
@@ -819,8 +819,6 @@ class fork_daemon
 			// invoke child cleanup callback
 			if (isset($this->child_bucket))
 				$this->invoke_callback($this->child_function_exit[$this->child_bucket], $parameters = array($this->child_bucket), true);
-
-			// close the socket
 		}
 
 		exit(-1);
@@ -1086,6 +1084,10 @@ class fork_daemon
 			}
 			elseif ($pid == 0)
 			{
+				/*
+				 * Child process
+				 */
+
 				declare(ticks = 1);
 
 				// close our socket (we only need the one to the parent)
@@ -1102,6 +1104,10 @@ class fork_daemon
 			}
 			else
 			{
+				/*
+				 * Parent process
+				 */
+
 				declare(ticks = 1);
 				$this->log('Spawned new helper process with pid ' . $pid, self::LOG_LEVEL_INFO);
 
@@ -1118,6 +1124,7 @@ class fork_daemon
 					'function' => $function_name,
 					'arguments' => $arguments,
 					'socket' => $socket_child,
+					'last_active' => microtime(true),
 				);
 				$this->forked_children_count++;
 			}
@@ -1313,7 +1320,7 @@ class fork_daemon
 			return array();
 
 		$results = $this->results[$bucket];
-		unset($this->results[$bucket]);
+		$this->results[$bucket] = array();
 
 		return $results;
 	}
@@ -1340,9 +1347,11 @@ class fork_daemon
 	 * @return type Returns the number of changed sockets for children workers in $bucket,
 	 * or empty array if none.
 	 */
-	private function get_changed_sockets($bucket = self::DEFAULT_BUCKET)
+	private function get_changed_sockets($bucket = self::DEFAULT_BUCKET, $timeout = 0)
 	{
-		$dummy = null;
+		$write_dummy = null;
+		$exception_dummy = null;
+
 		// grab all the children sockets
 		$sockets = array();
 		foreach ($this->forked_children as $pid => $child)
@@ -1354,10 +1363,9 @@ class fork_daemon
 		if (! empty($sockets))
 		{
 			// find changed sockets and return the array of them
-			$result = socket_select($sockets, $dummy, $dummy, $timeout);
+			$result = @socket_select($sockets, $write_dummy, $exception_dummy, $timeout);
 			if ($result !== false && $result > 0)
 				return $sockets;
-
 		}
 
 		return null;
@@ -1374,15 +1382,16 @@ class fork_daemon
 	 * @param type $bucket The bucket to look in
 	 * @return type The result of the child worker
 	 */
-	private function fetch_results($blocking = true, $timeout = null, $bucket = self::DEFAULT_BUCKET)
+	private function fetch_results($blocking = true, $timeout = 0, $bucket = self::DEFAULT_BUCKET)
 	{
 		$start = microtime(true);
 		$results = array();
 
-		// loop while there is pending children and pending sockets
+		// loop while there is pending children and pending sockets; this
+		// will break early on timeouts and when not blocking.
 		do
 		{
-			$ready_sockets = $this->get_changed_sockets($bucket);
+			$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
 			if (is_array($ready_sockets))
 			{
 				foreach ($ready_sockets as $pid => $socket)
@@ -1398,13 +1407,15 @@ class fork_daemon
 
 			// clean up forked children that have stopped and did not have recently
 			// active sockets.
-			foreach ($this->forked_children as $pid => $child)
+			foreach ($this->forked_children as $pid => &$child)
 			{
-				if (($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
+				if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
 				{
+					// close the socket from the parent
 					unset($this->forked_children[$pid]);
 				}
 			}
+			unset($child);
 
 			// check if timed out
 			if ($timeout && (microtime(true) - $start > $timeout))
@@ -1443,13 +1454,11 @@ class fork_daemon
 
 		if (! empty($this->parent_function_results[$bucket]))
 		{
-			if ($this->invoke_callback($this->parent_function_results[$bucket], array($results), true) === fale)
+			if ($this->invoke_callback($this->parent_function_results[$bucket], array($results), true) === false)
 				return false;
 		}
 		else
 		{
-			if (! isset($this->results[$bucket]) || ! is_array($this->results[$bucket]))
-				$this->results[$bucket] = array();
 			$this->results[$bucket] += $results;
 		}
 
@@ -1543,6 +1552,7 @@ class fork_daemon
 				'bucket' => $bucket,
 				'status' => self::WORKER,
 				'socket' => $socket_child,
+				'last_active' => microtime(true),
 			);
 			$this->forked_children_count++;
 
