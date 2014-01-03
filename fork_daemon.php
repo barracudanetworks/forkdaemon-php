@@ -1451,7 +1451,7 @@ class fork_daemon
 	private function post_results($bucket = self::DEFAULT_BUCKET)
 	{
 		// fetch all the results up to this point
-		$results = $this->fetch_results(false, null, $bucket);
+		$results = $this->fetch_results(false, 0, $bucket);
 		if (is_array($results) && empty($results))
 			return true;
 
