@@ -358,7 +358,7 @@ class fork_daemon
 	}
 
 	/**
-	 * Allows the app to retreive the current child_single_work_item value.
+	 * Allows the app to retrieve the current child_single_work_item value.
 	 * @access public
 	 * @param int $bucket the bucket to use
 	 * @return int the child_single_work_item value
@@ -369,7 +369,7 @@ class fork_daemon
 	}
 
 	/**
-	 * Allows the app to retreive the current child_bucket value.
+	 * Allows the app to retrieve the current child_bucket value.
 	 * @access public
 	 * @return int the child_bucket value representing the bucket number of the child
 	 */
@@ -696,7 +696,7 @@ class fork_daemon
 	 */
 	public function signal_handler_sigchild($signal_number)
 	{
-		// do not allow signals to interupt this
+		// do not allow signals to interrupt this
 		declare(ticks = 0)
 		{
 			// reap all child zombie processes
@@ -740,8 +740,11 @@ class fork_daemon
 					}
 					elseif ($child_pid < 0)
 					{
+						// ignore acceptable error 'No child processes' given we force this signal to run potentially when no children exist
+						if (pcntl_get_last_error() == 10) continue;
+
 						// pcntl_wait got an error
-						$this->log('pcntl_waitpid failed', self::LOG_LEVEL_DEBUG);
+						$this->log('pcntl_waitpid failed with error ' . pcntl_get_last_error() . ':' . pcntl_strerror((pcntl_get_last_error())), self::LOG_LEVEL_DEBUG);
 					}
 				}
 				while ($child_pid > 0);
@@ -1448,7 +1451,7 @@ class fork_daemon
 	private function post_results($bucket = self::DEFAULT_BUCKET)
 	{
 		// fetch all the results up to this point
-		$results = $this->fetch_results(false, null, $bucket);
+		$results = $this->fetch_results(false, 0, $bucket);
 		if (is_array($results) && empty($results))
 			return true;
 
