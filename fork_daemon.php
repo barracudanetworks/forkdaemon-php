@@ -1642,7 +1642,7 @@ class fork_daemon
 
 			if ((time() - $pid_info['ctime']) > $this->child_max_run_time[$pid_info['bucket']])
 			{
-				$this->log('Force kill $pid has run too long', self::LOG_LEVEL_INFO);
+				$this->log('Force kill ' . $pid . ' has run too long', self::LOG_LEVEL_INFO);
 
 				// notify app that child process timed out
 				$this->invoke_callback($this->child_function_timeout{$pid_info['bucket']}, array($pid, $pid_info['identifier']), true);
