@@ -125,6 +125,13 @@ class fork_daemon
 	private $parent_function_results = array(self::DEFAULT_BUCKET => '');
 
 	/**
+	 * Stores whether results are stored for retrieval by the parent
+	 * @access private
+	 * @var boolean $store_result
+	 */
+	private $store_result = false;
+
+	/**
 	 * Max number of seconds to wait for a child process
 	 * exit once it has been requested to exit
 	 * @access private
@@ -366,6 +373,26 @@ class fork_daemon
 	public function child_single_work_item_get($bucket = self::DEFAULT_BUCKET)
 	{
 		return($this->child_single_work_item[$bucket]);
+	}
+
+	/**
+	 * Allows the app to set the store_result value
+	 * @access public
+	 * @param int $value new store_result value.
+	 */
+	public function store_result_set($value)
+	{
+		$this->store_result = $value;
+	}
+
+	/**
+	 * Allows the app to retrieve the current store_result value.
+	 * @access public
+	 * @return boolean the store_result value
+	 */
+	public function store_result_get()
+	{
+		return $this->store_result;
 	}
 
 	/**
@@ -1038,7 +1065,7 @@ class fork_daemon
 	 * Returns the number of pending child items, including running children and
 	 * work sets that have not been allocated.  Children running includes those
 	 * that have not had their results retrieved yet.
-	 * 
+	 *
 	 * @param type $bucket The bucket to check for pending children items
 	 * @return int Number of pending children items
 	 */
@@ -1292,7 +1319,7 @@ class fork_daemon
 	/**
 	 * Returns the first result available from the bucket.  This will run
 	 * a non-blocking poll of the children for updated results.
-	 * 
+	 *
 	 * @param string $bucket The bucket to check
 	 * @return mixed The data retrieved from a child process on the buckets
 	 */
@@ -1310,7 +1337,7 @@ class fork_daemon
 	/**
 	 * Returns all the results currently in the results queue.  This will
 	 * run a non-blocking poll of the children for updated results.
-	 * 
+	 *
 	 * @param string $bucket The bucket to retrieves results
 	 * @return mixed Array of results from each child that has finished.
 	 */
@@ -1331,7 +1358,7 @@ class fork_daemon
 	/**
 	 * Checks if there is a result on the bucket.  Before checking,
 	 * runs a non-blocking poll of the children for updated results.
-	 * 
+	 *
 	 * @param string $bucket The bucket to check
 	 * @return int Returns true if there is a result
 	 */
@@ -1345,7 +1372,7 @@ class fork_daemon
 
 	/**
 	 * Checks if any changed child sockets are in the bucket.
-	 * 
+	 *
 	 * @param type $bucket The bucket to get results in
 	 * @return type Returns the number of changed sockets for children workers in $bucket,
 	 * or empty array if none.
@@ -1376,11 +1403,11 @@ class fork_daemon
 
 	/**
 	 * Returns any pending results from the child sockets.  If a
-	 * child has no results and it has status self::STOPPED, this will remove 
+	 * child has no results and it has status self::STOPPED, this will remove
 	 * the child record from $this->forked_children.
-	 * 
+	 *
 	 * NOTE: This must be polled to check for changed sockets.
-	 * 
+	 *
 	 * @param type $blocking Set to true to block until a result comes in
 	 * @param type $bucket The bucket to look in
 	 * @return type The result of the child worker
@@ -1438,14 +1465,14 @@ class fork_daemon
 	/**
 	 * Posts any new results to a callback function if one is available, or stores
 	 * them to the internal results storage if not.  This does not block and will
-	 * post any results that are available, so call while children are running 
+	 * post any results that are available, so call while children are running
 	 * to check and post more results.
-	 * 
+	 *
 	 * NOTE: This should be polled to update results.
-	 * 
+	 *
 	 * @param type $bucket The bucket to post the results in
 	 * @return type Returns true on successfully posting results, even if none
-	 * to post.  Returns false on error from this function or error from 
+	 * to post.  Returns false on error from this function or error from
 	 * the $this->parent_function_results callback.
 	 */
 	private function post_results($bucket = self::DEFAULT_BUCKET)
@@ -1460,7 +1487,7 @@ class fork_daemon
 			if ($this->invoke_callback($this->parent_function_results[$bucket], array($results), true) === false)
 				return false;
 		}
-		else
+		elseif ($this->store_result === true)
 		{
 			$this->results[$bucket] += $results;
 		}
@@ -1697,7 +1724,7 @@ class fork_daemon
 	/**
 	 * Initialize interprocess communication by setting up a pair
 	 * of sockets and returning them as an array.
-	 * 
+	 *
 	 * @return type
 	 */
 	private function ipc_init()
@@ -1719,7 +1746,7 @@ class fork_daemon
 
 	/**
 	 * Sends a serializable message to the socket.
-	 * 
+	 *
 	 * @param type $socket The socket to send the message on
 	 * @param type $message The serializable message to send
 	 * @return type Returns true on success, false on failure
@@ -1754,7 +1781,7 @@ class fork_daemon
 
 	/**
 	 * Receives a serialized message from the socket.
-	 * 
+	 *
 	 * @param type $socket Thes socket to receive the message from
 	 * @return type Returns true on success, false on failure
 	 */
