@@ -13,6 +13,7 @@ require_once(__DIR__ . '/../fork_daemon.php');
 $server = new fork_daemon();
 $server->max_children_set(100);
 $server->max_work_per_child_set(3);
+$server->store_result_set(true);
 $server->register_child_run("process_child_run");
 $server->register_parent_child_exit("process_child_exit");
 $server->register_logging("logger", fork_daemon::LOG_LEVEL_ALL);
