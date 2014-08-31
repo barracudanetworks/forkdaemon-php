@@ -1,5 +1,5 @@
 {
-    "name": "barracudanetworks/forkdaemon-php",
+    "name": "barracuda/forkdaemon-php",
     "type": "library",
     "description": "A library to make setup and management of forking daemons in PHP easy.",
     "keywords": ["forking", "daemons", "php"],
