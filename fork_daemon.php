@@ -741,7 +741,8 @@ class fork_daemon
 						$identifier = false;
 						if (!isset($this->forked_children[$child_pid]))
 						{
-							die("Cannot find $child_pid in array!\n");
+							$this->log("Cannot find $child_pid in array! (This may be a subprocess not in our fork)", self::LOG_LEVEL_INFO);
+							continue;
 						}
 
 						$child = $this->forked_children[$child_pid];
