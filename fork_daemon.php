@@ -696,7 +696,7 @@ class fork_daemon
 			{
 				foreach ($this->forked_children as $pid => $pid_info)
 				{
-					if ($pid_info['status'] == self::STOPPED)
+					if ($pid_info['status'] == self::STOPPED || !$this->is_my_child($pid))
 						continue;
 					$this->log('parent process [' . getmypid() . '] sending sighup to child ' . $pid, self::LOG_LEVEL_DEBUG);
 					posix_kill($pid, SIGHUP);
@@ -798,7 +798,7 @@ class fork_daemon
 		{
 			foreach ($this->forked_children as $pid => &$pid_info)
 			{
-				if ($pid_info['status'] == self::STOPPED)
+				if ($pid_info['status'] == self::STOPPED || !$this->is_my_child($pid))
 					continue;
 
 				// tell helpers not to respawn
@@ -823,7 +823,7 @@ class fork_daemon
 				{
 					foreach ($this->forked_children as $pid => $child)
 					{
-						if ($child['status'] == self::STOPPED)
+						if ($child['status'] == self::STOPPED || !$this->is_my_child($pid))
 							continue;
 
 						$this->log('force killing child pid: ' . $pid, self::LOG_LEVEL_INFO);
@@ -1086,6 +1086,38 @@ class fork_daemon
 	}
 
 	/**
+	 * Check if a given process is a child of the current process
+	 *
+	 * @return bool true if the given PID is a child PID of the current process, false otherwise
+	 */
+	public function is_my_child($pid)
+	{
+		$stat_pid_file = '/proc/' . $pid . '/stat';
+		if (!file_exists($stat_pid))
+		{
+			$this->log('Unable to find info for PID ' . $pid . ' from ' . $stat_pid_file, self::LOG_LEVEL_INFO);
+			return false;
+		}
+
+		$stat_pid_info = file_get_contents($stat_pid_file);
+		if ($stat_pid_info === false)
+		{
+			$this->log('Unable to get info for PID ' . $pid, self::LOG_LEVEL_INFO);
+			return false;
+		}
+
+		$stat_pid_info = explode(' ', $stat_pid_info);
+		if (!array_key_exists(3, $stat_pid_info))
+		{
+			$this->log('Unable to find parent PID for PID ' . $pid, self::LOG_LEVEL_INFO);
+			return false;
+		}
+
+		// the parent pid is the fourth entry in /proc/PID/stat
+		return ($stat_pid_info[3] == getmypid());
+	}
+
+	/**
 	 * Spawns a helper process
 	 *
 	 * Spawns a new helper process to perform duties under the parent server
@@ -1177,7 +1209,7 @@ class fork_daemon
 
 		foreach ($this->forked_children as $pid => $child)
 		{
-			if ($child['status'] == self::HELPER && $child['identifier'] == $identifier)
+			if ($child['status'] == self::HELPER && $child['identifier'] == $identifier && $this->is_my_child($pid))
 			{
 				$this->log('Forcing helper process \'' . $identifier . '\' with pid ' . $pid . ' to respawn', self::LOG_LEVEL_INFO);
 				posix_kill($pid, SIGKILL);
@@ -1202,7 +1234,7 @@ class fork_daemon
 		foreach ($pids as $index => $pid)
 		{
 			// make sure we own this pid
-			if (! array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
+			if (! array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED || !$this->is_my_child($pid))
 			{
 				$this->log('Skipping kill request on pid ' . $pid . ' because we dont own it', self::LOG_LEVEL_INFO);
 				unset($pids[$index]);
@@ -1665,7 +1697,7 @@ class fork_daemon
 	{
 		foreach ($this->forked_children as $pid => $pid_info)
 		{
-			if ($pid_info['status'] == self::STOPPED)
+			if ($pid_info['status'] == self::STOPPED || !$this->is_my_child($pid))
 				continue;
 
 			if ((time() - $pid_info['ctime']) > $this->child_max_run_time[$pid_info['bucket']])
