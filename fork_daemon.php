@@ -99,7 +99,7 @@ class fork_daemon
 	/**
 	 * Function the parent invokes before forking a child
 	 * @access protected
-	 * @var integer $parent_function_prefork
+	 * @var string[] $parent_function_prefork
 	 */
 	protected $parent_function_prefork = '';
 
@@ -530,7 +530,7 @@ class fork_daemon
 	 * @param array names of functions to be called.
 	 * @return bool true if the callback was successfully registered, false if it failed
 	 */
-	public function register_parent_prefork($function_names)
+	public function register_parent_prefork(array $function_names)
 	{
 		$this->parent_function_prefork = $function_names;
 		return true;
@@ -615,7 +615,7 @@ class fork_daemon
 	}
 
 	/**
-	 * Allows the app to set the call back function for when a child process is killed to exceeding its max runtime
+	 * Allows the app to set the call back function for when a child process is killed for exceeding its max runtime
 	 * @access public
 	 * @param string name of function to be called.
 	 * @param int $bucket the bucket to use
@@ -961,7 +961,7 @@ class fork_daemon
 	 * @param int $bucket the bucket to use
 	 * @param bool $sort_queue true to sort the work unit queue
 	 */
-	public function addwork(array $new_work_units, $identifier = '', $bucket = self::DEFAULT_BUCKET, $sort_queue = false)
+	public function addwork($new_work_units, $identifier = '', $bucket = self::DEFAULT_BUCKET, $sort_queue = false)
 	{
 		// ensure bucket is setup before we try to add data to it
 		if (! array_key_exists($bucket, $this->work_units))
