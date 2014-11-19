@@ -696,10 +696,9 @@ class fork_daemon
 			{
 				foreach ($this->forked_children as $pid => $pid_info)
 				{
-					if ($pid_info['status'] == self::STOPPED || !$this->is_my_child($pid))
+					if ($pid_info['status'] == self::STOPPED)
 						continue;
-					$this->log('parent process [' . getmypid() . '] sending sighup to child ' . $pid, self::LOG_LEVEL_DEBUG);
-					posix_kill($pid, SIGHUP);
+					$this->safe_kill($pid, SIGHUP, 'parent process [' . getmypid() . '] sending sighup to child ' . $pid, self::LOG_LEVEL_DEBUG);
 				}
 			}
 		}
@@ -798,15 +797,14 @@ class fork_daemon
 		{
 			foreach ($this->forked_children as $pid => &$pid_info)
 			{
-				if ($pid_info['status'] == self::STOPPED || !$this->is_my_child($pid))
+				if ($pid_info['status'] == self::STOPPED)
 					continue;
 
 				// tell helpers not to respawn
 				if ($pid_info['status'] == self::HELPER)
 					$pid_info['respawn'] = false;
 
-				$this->log('requesting child exit for pid: ' . $pid, self::LOG_LEVEL_INFO);
-				posix_kill($pid, SIGINT);
+				$this->safe_kill($pid, SIGINT, 'requesting child exit for pid: ' . $pid, self::LOG_LEVEL_INFO);
 			}
 
 			sleep(1);
@@ -823,11 +821,10 @@ class fork_daemon
 				{
 					foreach ($this->forked_children as $pid => $child)
 					{
-						if ($child['status'] == self::STOPPED || !$this->is_my_child($pid))
+						if ($child['status'] == self::STOPPED)
 							continue;
 
-						$this->log('force killing child pid: ' . $pid, self::LOG_LEVEL_INFO);
-						posix_kill($pid, SIGKILL);
+						$this->safe_kill($pid, SIGKILL, 'force killing child pid: ' . $pid, self::LOG_LEVEL_INFO);
 
 						// stop the child
 						$this->forked_children[$pid]['status'] = self::STOPPED;
@@ -1086,35 +1083,56 @@ class fork_daemon
 	}
 
 	/**
-	 * Check if a given process is a child of the current process
+	 * Try to kill a given process and make sure it is safe to kill
 	 *
-	 * @return bool true if the given PID is a child PID of the current process, false otherwise
+	 * @param int $pid the PID to check if it is our child
+	 * @param int $signal the kill signal to send to the given pid if possible
+	 * @param string $log_message the message to log out upon success
+	 * @param int $log_level the level at which to display the log_message
+	 * @return bool true on successful kill, false if not our child or not able to kill
 	 */
-	public function is_my_child($pid)
+	public function safe_kill($pid, $signal, $log_message = '', $log_level = self::LOG_LEVEL_INFO)
 	{
+		if (!array_key_exists($pid, $this->forked_children))
+		{
+			return false;
+		}
+
 		$stat_pid_file = '/proc/' . $pid . '/stat';
 		if (!file_exists($stat_pid))
 		{
-			$this->log('Unable to find info for PID ' . $pid . ' from ' . $stat_pid_file, self::LOG_LEVEL_INFO);
+			$this->log('Unable to find info for PID ' . $pid . ' from ' . $stat_pid_file, self::LOG_LEVEL_DEBUG);
 			return false;
 		}
 
 		$stat_pid_info = file_get_contents($stat_pid_file);
 		if ($stat_pid_info === false)
 		{
-			$this->log('Unable to get info for PID ' . $pid, self::LOG_LEVEL_INFO);
+			$this->log('Unable to get info for PID ' . $pid, self::LOG_LEVEL_DEBUG);
 			return false;
 		}
 
 		$stat_pid_info = explode(' ', $stat_pid_info);
 		if (!array_key_exists(3, $stat_pid_info))
 		{
-			$this->log('Unable to find parent PID for PID ' . $pid, self::LOG_LEVEL_INFO);
+			$this->log('Unable to find parent PID for PID ' . $pid, self::LOG_LEVEL_DEBUG);
 			return false;
 		}
 
 		// the parent pid is the fourth entry in /proc/PID/stat
-		return ($stat_pid_info[3] == getmypid());
+		if ($stat_pid_info[3] == getmypid())
+		{
+			if ($log_message)
+			{
+				$this->log($log_message, $log_level);
+			}
+
+			posix_kill($pid, $signal);
+			return true;
+		}
+
+		$this->log('Failed to kill PID ' . $pid . ' with signal ' . $signal, self::LOG_LEVEL_WARN);
+		return false;
 	}
 
 	/**
@@ -1209,10 +1227,9 @@ class fork_daemon
 
 		foreach ($this->forked_children as $pid => $child)
 		{
-			if ($child['status'] == self::HELPER && $child['identifier'] == $identifier && $this->is_my_child($pid))
+			if ($child['status'] == self::HELPER && $child['identifier'] == $identifier)
 			{
-				$this->log('Forcing helper process \'' . $identifier . '\' with pid ' . $pid . ' to respawn', self::LOG_LEVEL_INFO);
-				posix_kill($pid, SIGKILL);
+				$this->safe_kill($pid, SIGKILL, 'Forcing helper process \'' . $identifier . '\' with pid ' . $pid . ' to respawn', self::LOG_LEVEL_INFO);
 			}
 		}
 	}
@@ -1234,15 +1251,14 @@ class fork_daemon
 		foreach ($pids as $index => $pid)
 		{
 			// make sure we own this pid
-			if (! array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED || !$this->is_my_child($pid))
+			if (! array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
 			{
 				$this->log('Skipping kill request on pid ' . $pid . ' because we dont own it', self::LOG_LEVEL_INFO);
 				unset($pids[$index]);
 				continue;
 			}
 
-			$this->log('Asking pid ' . $pid . ' to exit via sigint', self::LOG_LEVEL_INFO);
-			posix_kill($pid, SIGINT);
+			$this->safe_kill($pid, SIGINT, 'Asking pid ' . $pid . ' to exit via sigint', self::LOG_LEVEL_INFO);
 		}
 
 		// store the requst time
@@ -1270,8 +1286,7 @@ class fork_daemon
 					continue;
 				}
 
-				$this->log('Force killing pid ' . $pid, self::LOG_LEVEL_INFO);
-				posix_kill($pid, SIGKILL);
+				$this->safe_kill($pid, SIGKILL, 'Force killing pid ' . $pid, self::LOG_LEVEL_INFO);
 			}
 		}
 	}
@@ -1697,7 +1712,7 @@ class fork_daemon
 	{
 		foreach ($this->forked_children as $pid => $pid_info)
 		{
-			if ($pid_info['status'] == self::STOPPED || !$this->is_my_child($pid))
+			if ($pid_info['status'] == self::STOPPED)
 				continue;
 
 			if ((time() - $pid_info['ctime']) > $this->child_max_run_time[$pid_info['bucket']])
@@ -1707,7 +1722,7 @@ class fork_daemon
 				// notify app that child process timed out
 				$this->invoke_callback($this->child_function_timeout{$pid_info['bucket']}, array($pid, $pid_info['identifier']), true);
 
-				posix_kill($pid, SIGKILL); // its probably stuck on something, kill it immediately.
+				$this->safe_kill($pid, SIGKILL); // its probably stuck on something, kill it immediately.
 				sleep(3); // give the child time to die
 
 				// force signal handling
