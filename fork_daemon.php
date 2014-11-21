@@ -1099,7 +1099,7 @@ class fork_daemon
 		}
 
 		$stat_pid_file = '/proc/' . $pid . '/stat';
-		if (!file_exists($stat_pid))
+		if (!file_exists($stat_pid_file))
 		{
 			$this->log('Unable to find info for PID ' . $pid . ' from ' . $stat_pid_file, self::LOG_LEVEL_DEBUG);
 			return false;
