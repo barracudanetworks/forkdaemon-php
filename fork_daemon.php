@@ -1885,11 +1885,11 @@ class fork_daemon
 		{
 			if (isset($this->log_function[$severity]))
 			{
-				return call_user_func($this->log_function[$severity], $message);
+				return call_user_func_array($this->log_function[$severity], array($message, $severity));
 			}
 			elseif (isset($this->log_function[self::LOG_LEVEL_ALL]))
 			{
-				return call_user_func($this->log_function[self::LOG_LEVEL_ALL], $message);
+				return call_user_func_array($this->log_function[self::LOG_LEVEL_ALL], array($message, $severity));
 			}
 		}
 		// Barracuda specific logging class, to keep internal code working
