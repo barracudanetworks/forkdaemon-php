@@ -1148,7 +1148,7 @@ class fork_daemon
 	 * @param string $identifier helper process unique identifier
 	 * @param bool $respawn whether to respawn the helper process when it dies
 	 */
-	public function helper_process_spawn($function_name, $arguments = array(), $idenfifier = '', $respawn = true)
+	public function helper_process_spawn($function_name, $arguments = array(), $identifier = '', $respawn = true)
 	{
 		if ((is_array($function_name) && method_exists($function_name[0], $function_name[1])) || function_exists($function_name))
 		{
@@ -1169,13 +1169,15 @@ class fork_daemon
 				 * Child process
 				 */
 
+				// set child properties
+				$this->child_bucket = self::DEFAULT_BUCKET;
+
 				declare(ticks = 1);
 
 				// close our socket (we only need the one to the parent)
 				socket_close($socket_child);
 
 				// execute the function
-				$this->log('Calling function ' . $function_name, self::LOG_LEVEL_DEBUG);
 				$result = call_user_func_array($function_name, $arguments);
 
 				// send the response to the parent
@@ -1198,7 +1200,7 @@ class fork_daemon
 				// track the child
 				$this->forked_children[$pid] = array(
 					'ctime' => time(),
-					'identifier' => $idenfifier,
+					'identifier' => $identifier,
 					'status' => self::HELPER,
 					'bucket' => self::DEFAULT_BUCKET,
 					'respawn' => true,
