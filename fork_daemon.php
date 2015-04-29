@@ -53,6 +53,22 @@ class fork_daemon
 	private $child_max_run_time = array(self::DEFAULT_BUCKET => 86400);
 
 	/**
+	 * Whether the bucket is in persisent mode or not.
+	 *
+	 * Persistent mode will keep $max_children[$bucket] processes running permanently
+	 *
+	 * @var array
+	 */
+	private $child_persistent_mode = array(self::DEFAULT_BUCKET => false);
+
+	/**
+	 * The data that is passed to the child functions when in persistent mode
+	 *
+	 * @var array
+	 */
+	private $child_persistent_mode_data = array(self::DEFAULT_BUCKET => null);
+
+	/**
 	 * Function the child invokes with a set of worker units
 	 * @access private
 	 * @var integer $child_function_run
@@ -272,7 +288,28 @@ class fork_daemon
 			$this->log(($bucket === self::DEFAULT_BUCKET ? 'default' : $bucket) . ' bucket max_children set to 0, bucket will be disabled', self::LOG_LEVEL_WARN);
 		}
 
+		$old = $this->max_children[$bucket];
 		$this->max_children[$bucket] = $value;
+
+		if ($this->child_persistent_mode[$bucket] && $old > $this->max_children[$bucket])
+		{
+			$difference = $old - $this->max_children[$bucket];
+			$killed = 0;
+			// Kill some of the child processes
+			foreach ($this->forked_children as $pid => $child)
+			{
+				if ($child['bucket'] == $bucket && $child['status'] == self::WORKER)
+				{
+					$this->safe_kill($pid, SIGINT, "max_children lowered for bucket $bucket, killing pid $pid");
+					$killed++;
+
+					if ($killed == $difference)
+					{
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -345,6 +382,24 @@ class fork_daemon
 	public function child_max_run_time_get($bucket = self::DEFAULT_BUCKET)
 	{
 		return($this->child_max_run_time[$bucket]);
+	}
+
+	/**
+	 * @param bool $persistent_mode whether or not the bucket should be in persistent mode
+	 * @param int $bucket the bucket to configure
+	 */
+	public function child_persistent_mode_set($persistent_mode, $bucket = self::DEFAULT_BUCKET)
+	{
+		$this->child_persistent_mode[$bucket] = $persistent_mode;
+	}
+
+	/**
+	 * @param mixed $data the data to be passed to the child processes while in persistent mode
+	 * @param int $bucket the bucket to configure
+	 */
+	public function child_persistent_mode_data_set($data, $bucket = self::DEFAULT_BUCKET)
+	{
+		$this->child_persistent_mode_data[$bucket] = $data;
 	}
 
 	/**
@@ -428,6 +483,8 @@ class fork_daemon
 		$this->child_function_exit[$bucket] = $this->child_function_exit[self::DEFAULT_BUCKET];
 		$this->child_function_timeout[$bucket] = $this->child_function_timeout[self::DEFAULT_BUCKET];
 		$this->parent_function_child_exited[$bucket] = $this->parent_function_child_exited[self::DEFAULT_BUCKET];
+		$this->child_persistent_mode[$bucket] = $this->child_persistent_mode[self::DEFAULT_BUCKET];
+		$this->child_persistent_mode_data[$bucket] = $this->child_persistent_mode_data[self::DEFAULT_BUCKET];
 		$this->work_units[$bucket] = array();
 		$this->buckets[$bucket] = $bucket;
 		$this->results[$bucket] = array();
@@ -443,7 +500,7 @@ class fork_daemon
 	public function register_child_run($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		/* call child function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if (is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_run[$bucket] = $function_name;
 			return true;
@@ -474,7 +531,7 @@ class fork_daemon
 	public function register_parent_fork($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		/* call child function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_fork[$bucket] = $function_name;
 			return true;
@@ -494,7 +551,7 @@ class fork_daemon
 	public function register_parent_sighup($function_name, $cascade_signal = true)
 	{
 		/* call child function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_sighup         = $function_name;
 			$this->parent_function_sighup_cascade = $cascade_signal;
@@ -514,7 +571,7 @@ class fork_daemon
 	public function register_child_sighup($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		/* call child function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_sighup[$bucket] = $function_name;
 			return true;
@@ -533,7 +590,7 @@ class fork_daemon
 	public function register_child_exit($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		/* call child function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_exit[$bucket] = $function_name;
 			return true;
@@ -552,7 +609,7 @@ class fork_daemon
 	public function register_child_timeout($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		/* call child function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_timeout[$bucket] = $function_name;
 			return true;
@@ -570,7 +627,7 @@ class fork_daemon
 	public function register_parent_exit($function_name)
 	{
 		// call parent function
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_exit = $function_name;
 			return true;
@@ -589,7 +646,7 @@ class fork_daemon
 	public function register_parent_child_exit($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		/* call parent function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_child_exited[$bucket] = $function_name;
 			return true;
@@ -607,7 +664,7 @@ class fork_daemon
 	public function register_parent_results($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
 		// call parent function
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_results[$bucket] = $function_name;
 			return true;
@@ -626,7 +683,7 @@ class fork_daemon
 	public function register_logging($function_name, $severity)
 	{
 		/* call parent function */
-		if ( ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
+		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->log_function[$severity] = $function_name;
 			return true;
@@ -1356,7 +1413,7 @@ class fork_daemon
 			// fork children until max
 			while ( $this->children_running($bucket) < $this->max_children[$bucket] )
 			{
-				if ($this->work_sets_count($bucket) == 0)
+				if (!$this->child_persistent_mode[$bucket] && $this->work_sets_count($bucket) == 0)
 					return true;
 
 				$this->process_work_unit($bucket);
@@ -1558,7 +1615,12 @@ class fork_daemon
 	{
 		$child_work_units = array_splice($this->work_units[$bucket], 0, $this->max_work_per_child[$bucket]);
 
-		if (count($child_work_units) > 0)
+		if ($this->child_persistent_mode[$bucket])
+		{
+			$data = isset($this->child_persistent_mode_data[$bucket]) ? $this->child_persistent_mode_data[$bucket] : null;
+			$this->fork_work_unit($data, '', $bucket);
+		}
+		elseif (count($child_work_units) > 0)
 		{
 			if ($this->child_single_work_item[$bucket])
 			{
@@ -1749,7 +1811,12 @@ class fork_daemon
 	private function invoke_callback($function_name, $parameters, $optional = false)
 	{
 		// call child function
-		if (is_array($function_name) && method_exists($function_name[0], $function_name[1]))
+		if (is_callable($function_name))
+		{
+			if (!is_array($parameters)) $parameters = array($parameters);
+			return call_user_func_array($function_name, $parameters);
+		}
+		elseif (is_array($function_name) && method_exists($function_name[0], $function_name[1]))
 		{
 			if (!is_array($parameters)) $parameters = array($parameters);
 			return call_user_func_array($function_name, $parameters);
