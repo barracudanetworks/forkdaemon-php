@@ -897,7 +897,7 @@ class fork_daemon
 			}
 
 			// make call back to parent exit function if it exists
-			$this->invoke_callback($this->parent_function_exit, $parameters = array(self::$parent_pid), true);
+			$this->invoke_callback($this->parent_function_exit, $parameters = array(self::$parent_pid, $signal_number), true);
 		}
 		else
 		{
