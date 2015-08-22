@@ -1,0 +1,3 @@
+[submodule "modules/Cuda-PHP-Code-Standards"]
+	path = modules/Cuda-PHP-Code-Standards
+	url = git@github.com:barracudanetworks/Cuda-PHP-Code-Standards.git
