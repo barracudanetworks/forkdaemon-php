@@ -6,7 +6,13 @@
     "homepage": "https://github.com/barracudanetworks/forkdaemon-php",
     "license": "MIT",
     "require": {
-        "php": ">=5.3.0"
+        "php": ">=5.3.0",
+        "ext-pcntl": "*",
+        "ext-sockets": "*"
+    },
+    "require-dev": {
+        "jakub-onderka/php-parallel-lint": "0.*",
+        "squizlabs/php_codesniffer": "2.*"
     },
     "autoload": {
         "files": [ "fork_daemon.php" ]
