@@ -47,10 +47,10 @@ class fork_daemon
 
 	/**
 	 * Maximum time in seconds a PID may execute
-	 * @access private
+	 * @access protected
 	 * @var integer $child_max_run_time
 	 */
-	private $child_max_run_time = array(self::DEFAULT_BUCKET => 86400);
+	protected $child_max_run_time = array(self::DEFAULT_BUCKET => 86400);
 
 	/**
 	 * Whether the bucket is in persisent mode or not.
@@ -59,214 +59,214 @@ class fork_daemon
 	 *
 	 * @var array
 	 */
-	private $child_persistent_mode = array(self::DEFAULT_BUCKET => false);
+	protected $child_persistent_mode = array(self::DEFAULT_BUCKET => false);
 
 	/**
 	 * The data that is passed to the child functions when in persistent mode
 	 *
 	 * @var array
 	 */
-	private $child_persistent_mode_data = array(self::DEFAULT_BUCKET => null);
+	protected $child_persistent_mode_data = array(self::DEFAULT_BUCKET => null);
 
 	/**
 	 * Function the child invokes with a set of worker units
-	 * @access private
+	 * @access protected
 	 * @var integer $child_function_run
 	 */
-	private $child_function_run = array(self::DEFAULT_BUCKET => '');
+	protected $child_function_run = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the parent invokes when a child finishes
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_child_exited
 	 */
-	private $parent_function_child_exited = array(self::DEFAULT_BUCKET => '');
+	protected $parent_function_child_exited = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the child invokes when sigint/term is received
-	 * @access private
+	 * @access protected
 	 * @var integer $child_function_exit
 	 */
-	private $child_function_exit = array(self::DEFAULT_BUCKET => '');
+	protected $child_function_exit = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the parent invokes when a child is killed due to exceeding the max runtime
-	 * @access private
+	 * @access protected
 	 * @var integer $child_function_timeout
 	 */
-	private $child_function_timeout = array(self::DEFAULT_BUCKET => '');
+	protected $child_function_timeout = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the parent invokes before forking a child
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_prefork
 	 */
-	private $parent_function_prefork = '';
+	protected $parent_function_prefork = '';
 
 	/**
 	 * Function the parent invokes when a child is spawned
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_fork
 	 */
-	private $parent_function_fork = array(self::DEFAULT_BUCKET => '');
+	protected $parent_function_fork = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the parent invokes when the parent receives a SIGHUP
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_sighup
 	 */
-	private $parent_function_sighup = '';
+	protected $parent_function_sighup = '';
 
 	/**
 	 * Property of the parent sighup function.  If true, the parent
 	 * will send sighup to all children when the parent receives a
 	 * sighup.
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_sighup_cascade
 	 */
-	private $parent_function_sighup_cascade = true;
+	protected $parent_function_sighup_cascade = true;
 
 	/**
 	 * Function the child invokes when the child receives a SIGHUP
-	 * @access private
+	 * @access protected
 	 * @var integer $child_function_sighup
 	 */
-	private $child_function_sighup = array(self::DEFAULT_BUCKET => '');
+	protected $child_function_sighup = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Function the parent invokes when a child has results to post
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_results
 	 */
-	private $parent_function_results = array(self::DEFAULT_BUCKET => '');
+	protected $parent_function_results = array(self::DEFAULT_BUCKET => '');
 
 	/**
 	 * Stores whether results are stored for retrieval by the parent
-	 * @access private
+	 * @access protected
 	 * @var boolean $store_result
 	 */
-	private $store_result = false;
+	protected $store_result = false;
 
 	/**
 	 * Max number of seconds to wait for a child process
 	 * exit once it has been requested to exit
-	 * @access private
+	 * @access protected
 	 * @var integer $children_kill_timeout
 	 */
-	private $children_max_timeout = 30;
+	protected $children_max_timeout = 30;
 
 	/**
 	 * Function the parent runs when the daemon is getting shutdown
-	 * @access private
+	 * @access protected
 	 * @var integer $parent_function_exit
 	 */
-	private $parent_function_exit = '';
+	protected $parent_function_exit = '';
 
 	/**
 	 * Stores whether the daemon is in single item mode or not
-	 * @access private
+	 * @access protected
 	 * @var bool $child_single_work_item
 	 */
-	private $child_single_work_item = array(self::DEFAULT_BUCKET => false);
+	protected $child_single_work_item = array(self::DEFAULT_BUCKET => false);
 
 	/**
 	 * Function to call when there is a message to log
-	 * @access private
+	 * @access protected
 	 * @var array $log_function array of callables index by severity
 	 * called with call_user_func($log_function, $message)
 	 */
-	private $log_function = null;
+	protected $log_function = null;
 
 	/**
 	 * Stores whether or not we have received an exit request
-	 * @access private
+	 * @access protected
 	 * @default false
 	 * @var bool $exit_request_status
 	 */
-	private $exit_request_status = false;
+	protected $exit_request_status = false;
 
 	/**************** SERVER CONTROLS ****************/
 	/**
 	 * Upper limit on the number of children started.
-	 * @access private
+	 * @access protected
 	 * @var integer $max_children
 	 */
-	private $max_children = array(self::DEFAULT_BUCKET => 25);
+	protected $max_children = array(self::DEFAULT_BUCKET => 25);
 
 	/**
 	 * Upper limit on the number of work units sent to each child.
-	 * @access private
+	 * @access protected
 	 * @var integer $max_work_per_child
 	 */
-	private $max_work_per_child = array(self::DEFAULT_BUCKET => 100);
+	protected $max_work_per_child = array(self::DEFAULT_BUCKET => 100);
 
 	/**
 	 * Interval to do house keeping in seconds
-	 * @access private
+	 * @access protected
 	 * @var integer $housekeeping_check_interval
 	 */
-	private $housekeeping_check_interval = 20;
+	protected $housekeeping_check_interval = 20;
 
 	/**************** TRACKING CONTROLS ****************/
 
 	/**
 	 * track children of parent including their status and create time
-	 * @access private
+	 * @access protected
 	 * @var array $forked_children
 	 */
-	private $forked_children = array();
+	protected $forked_children = array();
 
 	/**
 	 * number of tracked children (not stopped)
-	 * @access private
+	 * @access protected
 	 * @var array $forked_children_count
 	 */
-	private $forked_children_count = 0;
+	protected $forked_children_count = 0;
 
 	/**
 	 * track the work units to process
-	 * @access private
+	 * @access protected
 	 * @var array $work_units
 	 */
-	private $work_units = array(self::DEFAULT_BUCKET => array());
+	protected $work_units = array(self::DEFAULT_BUCKET => array());
 
 	/**
 	 * track the buckets
-	 * @access private
+	 * @access protected
 	 * @var array $buckets
 	 */
-	private $buckets = array(0 => self::DEFAULT_BUCKET);
+	protected $buckets = array(0 => self::DEFAULT_BUCKET);
 
 	/**
 	 * for the parent the track the results received from chilren
-	 * @access private
+	 * @access protected
 	 * @var array $work_units
 	 */
-	private $results = array(self::DEFAULT_BUCKET => array());
+	protected $results = array(self::DEFAULT_BUCKET => array());
 
 	/**
 	 * within a child, track the bucket the child exists in. note,
 	 * this shouldn't be set or referenced in the parent process
-	 * @access private
+	 * @access protected
 	 * @var int $child_bucket
 	 */
-	private $child_bucket = null;
+	protected $child_bucket = null;
 
 	/**************** MOST IMPORTANT CONTROLS  ****************/
 
 	/**
 	 * parent pid
-	 * @access private
+	 * @access protected
 	 * @var array $parent_pid
 	 */
-	static private $parent_pid;
+	static protected $parent_pid;
 
 	/**
 	 * last housekeeping check time
-	 * @access private
+	 * @access protected
 	 * @var array $housekeeping_last_check
 	 */
-	private $housekeeping_last_check = 0;
+	protected $housekeeping_last_check = 0;
 
 	/**************** FUNCTION DEFINITIONS  ****************/
 
@@ -1484,7 +1484,7 @@ class fork_daemon
 	 * @return type Returns the number of changed sockets for children workers in $bucket,
 	 * or empty array if none.
 	 */
-	private function get_changed_sockets($bucket = self::DEFAULT_BUCKET, $timeout = 0)
+	protected function get_changed_sockets($bucket = self::DEFAULT_BUCKET, $timeout = 0)
 	{
 		$write_dummy = null;
 		$exception_dummy = null;
@@ -1519,7 +1519,7 @@ class fork_daemon
 	 * @param type $bucket The bucket to look in
 	 * @return type The result of the child worker
 	 */
-	private function fetch_results($blocking = true, $timeout = 0, $bucket = self::DEFAULT_BUCKET)
+	protected function fetch_results($blocking = true, $timeout = 0, $bucket = self::DEFAULT_BUCKET)
 	{
 		$start = microtime(true);
 		$results = array();
@@ -1582,7 +1582,7 @@ class fork_daemon
 	 * to post.  Returns false on error from this function or error from
 	 * the $this->parent_function_results callback.
 	 */
-	private function post_results($bucket = self::DEFAULT_BUCKET)
+	protected function post_results($bucket = self::DEFAULT_BUCKET)
 	{
 		// fetch all the results up to this point
 		$results = $this->fetch_results(false, 0, $bucket);
@@ -1611,7 +1611,7 @@ class fork_daemon
 	 *
 	 * @param int $bucket the bucket to use
 	 */
-	private function process_work_unit($bucket = self::DEFAULT_BUCKET)
+	protected function process_work_unit($bucket = self::DEFAULT_BUCKET)
 	{
 		$child_work_units = array_splice($this->work_units[$bucket], 0, $this->max_work_per_child[$bucket]);
 
@@ -1655,7 +1655,7 @@ class fork_daemon
 	 * @param int $bucket the bucket to use
 	 * @return mixed the child pid on success or boolean false on failure
 	 */
-	private function fork_work_unit($work_unit, $identifier = '', $bucket = self::DEFAULT_BUCKET)
+	protected function fork_work_unit($work_unit, $identifier = '', $bucket = self::DEFAULT_BUCKET)
 	{
 		// prefork callback
 		foreach ($this->parent_function_prefork as $function)
@@ -1751,9 +1751,9 @@ class fork_daemon
 
 	/**
 	 * Performs house keeping every housekeeping_check_interval seconds
-	 * @access private
+	 * @access protected
 	 */
-	private function housekeeping_check()
+	protected function housekeeping_check()
 	{
 		if ((time() - $this->housekeeping_last_check) >= $this->housekeeping_check_interval)
 		{
@@ -1770,9 +1770,9 @@ class fork_daemon
 
 	/**
 	 * Kills any children that have been running for too long.
-	 * @access private
+	 * @access protected
 	 */
-	private function kill_maxtime_violators()
+	protected function kill_maxtime_violators()
 	{
 		foreach ($this->forked_children as $pid => $pid_info)
 		{
@@ -1802,13 +1802,13 @@ class fork_daemon
 	 * This function will try using the objects inherited function if it exists.  If not,
 	 * it'll look for a declared function of the given name.
 	 *
-	 * @access private
+	 * @access protected
 	 * @param string $function_name the name of the function to invoke
 	 * @param array $parameters an array of parameters to pass to function
 	 * @param bool $optional is set to true, don't error if function_name not available
 	 * @return mixed false on error, otherwise return of callback function
 	 */
-	private function invoke_callback($function_name, $parameters, $optional = false)
+	protected function invoke_callback($function_name, $parameters, $optional = false)
 	{
 		// call child function
 		if (is_callable($function_name))
@@ -1844,7 +1844,7 @@ class fork_daemon
 	 *
 	 * @return type
 	 */
-	private function ipc_init()
+	protected function ipc_init()
 	{
 		// windows needs AF_INET
 		$domain = strtoupper(substr(PHP_OS, 0, 3)) == 'WIN' ? AF_INET : AF_UNIX;
@@ -1868,7 +1868,7 @@ class fork_daemon
 	 * @param type $message The serializable message to send
 	 * @return type Returns true on success, false on failure
 	 */
-	private function socket_send($socket, $message)
+	protected function socket_send($socket, $message)
 	{
 		$serialized_message = @serialize($message);
 		if ($serialized_message == false)
@@ -1902,7 +1902,7 @@ class fork_daemon
 	 * @param type $socket Thes socket to receive the message from
 	 * @return type Returns true on success, false on failure
 	 */
-	private function socket_receive($socket)
+	protected function socket_receive($socket)
 	{
 		// initially read to the length of the header size, then
 		// expand to read more
@@ -1943,12 +1943,12 @@ class fork_daemon
 	/**
 	 * Log a message
 	 *
-	 * @access private
+	 * @access protected
 	 * @param string $message the text to log
 	 * @param int $severity the severity of the message
 	 * @param bool true on success, false on error
 	 */
-	private function log($message, $severity)
+	protected function log($message, $severity)
 	{
 		if (!empty($this->log_function))
 		{
