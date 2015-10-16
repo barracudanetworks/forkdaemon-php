@@ -1330,7 +1330,7 @@ class fork_daemon
 			foreach ($pids as $index => $pid)
 			{
 				// check if the pid exited gracefully
-				if (!isset($this->forked_children[$pid]) || $this->forked_children[$pid]['status'] == self::STOPPED)
+				if (!array_key_exists($this->forked_children[$pid]) || $this->forked_children[$pid]['status'] == self::STOPPED)
 				{
 					$this->log('Pid ' . $pid . ' has exited gracefully', self::LOG_LEVEL_INFO);
 					unset($pids[$index]);
