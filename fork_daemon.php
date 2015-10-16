@@ -1325,12 +1325,12 @@ class fork_daemon
 		$time = 0;
 
 		// make sure the children exit
-		while ((count($pids) > 0) && ($time >= $kill_delay))
+		while ((count($pids) > 0) && ($time < $kill_delay))
 		{
 			foreach ($pids as $index => $pid)
 			{
 				// check if the pid exited gracefully
-				if ($this->forked_children[$pid]['status'] == self::STOPPED)
+				if (!isset($this->forked_children[$pid]) || $this->forked_children[$pid]['status'] == self::STOPPED)
 				{
 					$this->log('Pid ' . $pid . ' has exited gracefully', self::LOG_LEVEL_INFO);
 					unset($pids[$index]);
@@ -1340,7 +1340,7 @@ class fork_daemon
 				$time = microtime(true) - $request_time;
 				if ($time < $kill_delay)
 				{
-					$this->log('Waiting ' . round($time, 0) . ' seconds for ' . count($pids) . ' to exit gracefully', self::LOG_LEVEL_INFO);
+					$this->log('Waiting ' . ($kill_delay - round($time, 0)) . ' seconds for ' . count($pids) . ' to exit gracefully', self::LOG_LEVEL_INFO);
 					sleep(1);
 					continue;
 				}
