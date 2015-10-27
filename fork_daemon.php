@@ -1304,13 +1304,16 @@ class fork_daemon
 	 */
 	public function kill_child_pid($pids, $kill_delay = 30)
 	{
-		if (! is_array($pids)) $pids = array($pids);
+		if (!is_array($pids))
+		{
+			$pids = array($pids);
+		}
 
 		// send int sigs to the children
 		foreach ($pids as $index => $pid)
 		{
 			// make sure we own this pid
-			if (! array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
+			if (!array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
 			{
 				$this->log('Skipping kill request on pid ' . $pid . ' because we dont own it', self::LOG_LEVEL_INFO);
 				unset($pids[$index]);
@@ -1330,7 +1333,7 @@ class fork_daemon
 			foreach ($pids as $index => $pid)
 			{
 				// check if the pid exited gracefully
-				if (!array_key_exists($this->forked_children[$pid]) || $this->forked_children[$pid]['status'] == self::STOPPED)
+				if (!array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
 				{
 					$this->log('Pid ' . $pid . ' has exited gracefully', self::LOG_LEVEL_INFO);
 					unset($pids[$index]);
