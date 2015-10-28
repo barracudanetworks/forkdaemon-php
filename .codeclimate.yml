@@ -1,0 +1,16 @@
+exclude_paths:
+ - "examples/**/*"
+ - "modules/**/*"
+ - "vendor/**/*"
+engines:
+  phpcodesniffer:
+    enabled: true
+    config:
+      file_extensions: "php"
+      standard: "/code/modules/Cuda-PHP-Code-Standards/PHP_CodeSniffer/Barracuda/ruleset.xml"
+      ignore_warnings: true
+  fixme:
+    enabled: true
+ratings:
+  paths:
+  - "**/*.php"
