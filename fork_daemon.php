@@ -970,7 +970,7 @@ class fork_daemon
 		return;
 	}
 
-	/*
+	/**
 	 * Based on identifier and bucket is a child working on the work
 	 *
 	 * @param string unique identifier for the work
@@ -990,7 +990,7 @@ class fork_daemon
 		return false;
 	}
 
-	/*
+	/**
 	 * Return array of currently running children
 	 *
 	 * @param int $bucket the bucket
@@ -1001,9 +1001,12 @@ class fork_daemon
 		$results = array();
 		foreach ($this->forked_children as $pid => $child)
 		{
-			if ($child['status'] != self::STOPPED)
+			if ($child['status'] != self::STOPPED && $child['bucket'] === $bucket)
+			{
 				$results[$pid] = $child;
+			}
 		}
+
 		return $results;
 	}
 
