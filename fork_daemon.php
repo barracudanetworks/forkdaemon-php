@@ -970,7 +970,7 @@ class fork_daemon
 		return;
 	}
 
-	/*
+	/**
 	 * Based on identifier and bucket is a child working on the work
 	 *
 	 * @param string unique identifier for the work
@@ -990,7 +990,7 @@ class fork_daemon
 		return false;
 	}
 
-	/*
+	/**
 	 * Return array of currently running children
 	 *
 	 * @param int $bucket the bucket
@@ -1001,9 +1001,12 @@ class fork_daemon
 		$results = array();
 		foreach ($this->forked_children as $pid => $child)
 		{
-			if ($child['status'] != self::STOPPED)
+			if ($child['status'] != self::STOPPED && $child['bucket'] === $bucket)
+			{
 				$results[$pid] = $child;
+			}
 		}
+
 		return $results;
 	}
 
@@ -1304,13 +1307,16 @@ class fork_daemon
 	 */
 	public function kill_child_pid($pids, $kill_delay = 30)
 	{
-		if (! is_array($pids)) $pids = array($pids);
+		if (!is_array($pids))
+		{
+			$pids = array($pids);
+		}
 
 		// send int sigs to the children
 		foreach ($pids as $index => $pid)
 		{
 			// make sure we own this pid
-			if (! array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
+			if (!array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
 			{
 				$this->log('Skipping kill request on pid ' . $pid . ' because we dont own it', self::LOG_LEVEL_INFO);
 				unset($pids[$index]);
@@ -1330,7 +1336,7 @@ class fork_daemon
 			foreach ($pids as $index => $pid)
 			{
 				// check if the pid exited gracefully
-				if (!array_key_exists($this->forked_children[$pid]) || $this->forked_children[$pid]['status'] == self::STOPPED)
+				if (!array_key_exists($pid, $this->forked_children) || $this->forked_children[$pid]['status'] == self::STOPPED)
 				{
 					$this->log('Pid ' . $pid . ' has exited gracefully', self::LOG_LEVEL_INFO);
 					unset($pids[$index]);
