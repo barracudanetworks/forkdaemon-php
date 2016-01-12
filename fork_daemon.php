@@ -275,6 +275,14 @@ class fork_daemon
 	 */
 
 	/**
+	 * @return array The forked children array.
+	 */
+	public function getForkedChildren()
+	{
+		return $this->forked_children;
+	}
+
+	/**
 	 * Allows the app to set the max_children value
 	 * @access public
 	 * @param int $value the new max_children value.
