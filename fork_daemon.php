@@ -1555,7 +1555,7 @@ class fork_daemon
 			{
 				foreach ($ready_sockets as $pid => $socket)
 				{
-					if (! isset($this->forked_children[$pid]))
+					if (!isset($this->forked_children[$pid]))
 					{
 						unset($ready_sockets[$pid]);
 						continue;
