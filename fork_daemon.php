@@ -1555,6 +1555,8 @@ class fork_daemon
 			{
 				foreach ($ready_sockets as $pid => $socket)
 				{
+					// Ensure PID is still on forked_children -- may have been removed if a SIGCHILD occurred. The hope
+					// is that this fixes BNBS-23987.
 					if (!isset($this->forked_children[$pid]))
 					{
 						unset($ready_sockets[$pid]);
