@@ -773,7 +773,7 @@ class fork_daemon
 		else
 		{
 			// child received sighup. note a child is only in one bucket, do not loop through all buckets
-			if (isset($this->child_bucket))
+			if (isset($this->child_bucket) && isset($this->child_function_sighup[$this->child_bucket]))
 			{
 				$this->log('child process [' . getmypid() . '] received sighup with bucket type [' . $this->child_bucket . ']', self::LOG_LEVEL_DEBUG);
 				$this->invoke_callback(
