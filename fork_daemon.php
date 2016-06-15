@@ -466,7 +466,10 @@ class fork_daemon
 	public function child_bucket_get()
 	{
 		// this function does not apply to the parent
-		if (self::$parent_pid == getmypid()) return false;
+		if (self::$parent_pid == getmypid())
+		{
+			return false;
+		}
 
 		return($this->child_bucket);
 	}
@@ -479,7 +482,7 @@ class fork_daemon
 	 */
 	public function add_bucket($bucket)
 	{
-		/* create the bucket by copying values from the default bucket */
+		// create the bucket by copying values from the default bucket
 		$this->max_children[$bucket] = $this->max_children[self::DEFAULT_BUCKET];
 		$this->child_single_work_item[$bucket] = $this->child_single_work_item[self::DEFAULT_BUCKET];
 		$this->max_work_per_child[$bucket] = $this->max_work_per_child[self::DEFAULT_BUCKET];
@@ -507,7 +510,7 @@ class fork_daemon
 	 */
 	public function register_child_run($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
-		/* call child function */
+		// call child function
 		if (is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_run[$bucket] = $function_name;
@@ -538,7 +541,7 @@ class fork_daemon
 	 */
 	public function register_parent_fork($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
-		/* call child function */
+		// call child function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_fork[$bucket] = $function_name;
@@ -558,7 +561,7 @@ class fork_daemon
 	 */
 	public function register_parent_sighup($function_name, $cascade_signal = true)
 	{
-		/* call child function */
+		// call child function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_sighup         = $function_name;
@@ -578,7 +581,7 @@ class fork_daemon
 	 */
 	public function register_child_sighup($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
-		/* call child function */
+		// call child function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_sighup[$bucket] = $function_name;
@@ -597,7 +600,7 @@ class fork_daemon
 	 */
 	public function register_child_exit($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
-		/* call child function */
+		// call child function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_exit[$bucket] = $function_name;
@@ -616,7 +619,7 @@ class fork_daemon
 	 */
 	public function register_child_timeout($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
-		/* call child function */
+		// call child function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->child_function_timeout[$bucket] = $function_name;
@@ -653,7 +656,7 @@ class fork_daemon
 	 */
 	public function register_parent_child_exit($function_name, $bucket = self::DEFAULT_BUCKET)
 	{
-		/* call parent function */
+		// call parent function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->parent_function_child_exited[$bucket] = $function_name;
@@ -690,7 +693,7 @@ class fork_daemon
 	 */
 	public function register_logging($function_name, $severity)
 	{
-		/* call parent function */
+		// call parent function
 		if ( is_callable($function_name) || ( is_array($function_name) && method_exists($function_name[0], $function_name[1]) ) || method_exists($this, $function_name) || function_exists($function_name) )
 		{
 			$this->log_function[$severity] = $function_name;
@@ -708,10 +711,10 @@ class fork_daemon
 	 */
 	public function __construct()
 	{
-		/* record pid of parent process */
+		// record pid of parent process
 		self::$parent_pid = getmypid();
 
-		/* install signal handlers */
+		// install signal handlers
 		declare(ticks = 1);
 		pcntl_signal(SIGHUP,  array(&$this, 'signal_handler_sighup'));
 		pcntl_signal(SIGCHLD, array(&$this, 'signal_handler_sigchild'));
@@ -728,7 +731,7 @@ class fork_daemon
 		pcntl_signal(SIGTRAP, SIG_IGN);
 		pcntl_signal(SIGSYS,  SIG_IGN);
 
-		/* add barracuda specific prefork functions (doesn't hurt anything) */
+		// add barracuda specific prefork functions (doesn't hurt anything)
 		$this->parent_function_prefork = array('db_clear_connection_cache', 'memcache_clear_connection_cache');
 	}
 
@@ -770,12 +773,15 @@ class fork_daemon
 		else
 		{
 			// child received sighup. note a child is only in one bucket, do not loop through all buckets
-			$this->log('child process [' . getmypid() . '] received sighup with bucket type [' . $this->child_bucket . ']', self::LOG_LEVEL_DEBUG);
-			$this->invoke_callback(
-				$this->child_function_sighup[$this->child_bucket],
-				array($this->child_bucket),
-				true
-			);
+			if (isset($this->child_bucket) && isset($this->child_function_sighup[$this->child_bucket]))
+			{
+				$this->log('child process [' . getmypid() . '] received sighup with bucket type [' . $this->child_bucket . ']', self::LOG_LEVEL_DEBUG);
+				$this->invoke_callback(
+					$this->child_function_sighup[$this->child_bucket],
+					array($this->child_bucket),
+					true
+				);
+			}
 		}
 	}
 
@@ -911,7 +917,9 @@ class fork_daemon
 		{
 			// invoke child cleanup callback
 			if (isset($this->child_bucket))
+			{
 				$this->invoke_callback($this->child_function_exit[$this->child_bucket], $parameters = array($this->child_bucket), true);
+			}
 		}
 
 		exit(-1);
@@ -1547,6 +1555,14 @@ class fork_daemon
 			{
 				foreach ($ready_sockets as $pid => $socket)
 				{
+					// Ensure PID is still on forked_children -- may have been removed if a SIGCHILD occurred. The hope
+					// is that this fixes BNBS-23987.
+					if (!isset($this->forked_children[$pid]))
+					{
+						unset($ready_sockets[$pid]);
+						continue;
+					}
+
 					$result = $this->socket_receive($socket);
 					if ($result !== false && (! is_null($result)))
 					{
