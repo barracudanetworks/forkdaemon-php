@@ -372,10 +372,14 @@ class fork_daemon
 	 */
 	public function child_max_run_time_set($value, $bucket = self::DEFAULT_BUCKET)
 	{
-		if ($value < 1)
+		if ($value == 0)
 		{
-			$value = 0;
 			$this->log(($bucket === self::DEFAULT_BUCKET ? 'default' : $bucket) . ' bucket child_max_run_time set to 0', self::LOG_LEVEL_WARN);
+		}
+		elseif ($value < 0)
+		{
+			$value = -1;
+			$this->log(($bucket === self::DEFAULT_BUCKET ? 'default' : $bucket) . ' bucket child_max_run_time set to unlimited', self::LOG_LEVEL_WARN);
 		}
 
 		$this->child_max_run_time[$bucket] = $value;
@@ -1809,7 +1813,7 @@ class fork_daemon
 			if ($pid_info['status'] == self::STOPPED)
 				continue;
 
-			if ((time() - $pid_info['ctime']) > $this->child_max_run_time[$pid_info['bucket']])
+			if ($this->child_max_run_time[$pid_info['bucket']] >= 0 && (time() - $pid_info['ctime']) > $this->child_max_run_time[$pid_info['bucket']])
 			{
 				$this->log('Force kill ' . $pid . ' has run too long', self::LOG_LEVEL_INFO);
 
