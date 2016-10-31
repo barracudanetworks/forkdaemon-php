@@ -1506,7 +1506,7 @@ class fork_daemon
 	/**
 	 * Run signals sent to the process
 	 */
-	public function dispatch_signals()
+	static public function dispatch_signals()
 	{
 		// Run signal handlers
 		pcntl_signal_dispatch();
