@@ -1504,6 +1504,15 @@ class fork_daemon
 	}
 
 	/**
+	 * Run signals sent to the process
+	 */
+	public function dispatch_signals()
+	{
+		// Run signal handlers
+		pcntl_signal_dispatch();
+	}
+
+	/**
 	 * Checks if any changed child sockets are in the bucket.
 	 *
 	 * @param type $bucket The bucket to get results in
