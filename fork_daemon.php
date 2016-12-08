@@ -185,6 +185,13 @@ class fork_daemon
 	 */
 	protected $exit_request_status = false;
 
+	/**
+	 * In the child process, stores the socket to get results back to the parent
+	 *
+	 * @var null
+	 */
+	protected $child_socket_to_parent = null;
+
 	/**************** SERVER CONTROLS ****************/
 	/**
 	 * Upper limit on the number of children started.
@@ -1506,10 +1513,19 @@ class fork_daemon
 	/**
 	 * Run signals sent to the process
 	 */
-	static public function dispatch_signals()
+	public static function dispatch_signals()
 	{
 		// Run signal handlers
 		pcntl_signal_dispatch();
+	}
+
+	/**
+	 * Send a message from the child to the parent
+	 * @param $result
+	 */
+	public function child_send_result_to_parent($result)
+	{
+		self::socket_send($this->child_socket_to_parent, $result);
 	}
 
 	/**
@@ -1763,6 +1779,9 @@ class fork_daemon
 			$this->work_units = null;
 			$this->forked_children = null;
 			$this->results = null;
+
+			// save the socket from child to parent to support $this->child_send_result_to_parent()
+			$this->child_socket_to_parent = $socket_parent;
 
 			// set child properties
 			$this->child_bucket = $bucket;
