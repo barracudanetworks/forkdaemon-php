@@ -101,7 +101,7 @@ class fork_daemon
 	 * @access protected
 	 * @var string[] $parent_function_prefork
 	 */
-	protected $parent_function_prefork = '';
+	protected $parent_function_prefork = array();
 
 	/**
 	 * Function the parent invokes when a child is spawned
