@@ -1933,30 +1933,34 @@ class fork_daemon
 	 */
 	protected function socket_send($socket, $message)
 	{
-		$serialized_message = @serialize($message);
-		if ($serialized_message == false)
+		// do not process signals while we are sending an IPC message
+		declare(ticks = 0)
 		{
-			$this->log('socket_send failed to serialize message', self::LOG_LEVEL_CRIT);
-			return false;
-		}
-
-		$header = pack('N', strlen($serialized_message));
-		$data = $header . $serialized_message;
-		$bytes_left = strlen($data);
-		while ($bytes_left > 0)
-		{
-			$bytes_sent = @socket_write($socket, $data);
-			if ($bytes_sent === false)
+			$serialized_message = @serialize($message);
+			if ($serialized_message == false)
 			{
-				$this->log('socket_send error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+				$this->log('socket_send failed to serialize message', self::LOG_LEVEL_CRIT);
 				return false;
 			}
 
-			$bytes_left -= $bytes_sent;
-			$data = substr($data, $bytes_sent);
-		}
+			$header = pack('N', strlen($serialized_message));
+			$data = $header . $serialized_message;
+			$bytes_left = strlen($data);
+			while ($bytes_left > 0)
+			{
+				$bytes_sent = @socket_write($socket, $data);
+				if ($bytes_sent === false)
+				{
+					$this->log('socket_send error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+					return false;
+				}
 
-		return true;
+				$bytes_left -= $bytes_sent;
+				$data = substr($data, $bytes_sent);
+			}
+
+			return true;
+		}
 	}
 
 	/**
@@ -1967,40 +1971,44 @@ class fork_daemon
 	 */
 	protected function socket_receive($socket)
 	{
-		// initially read to the length of the header size, then
-		// expand to read more
-		$bytes_total = self::SOCKET_HEADER_SIZE;
-		$bytes_read = 0;
-		$have_header = false;
-		$socket_message = '';
-		while ($bytes_read < $bytes_total)
+		// do not process signals while we are receiving an IPC message
+		declare(ticks = 0)
 		{
-			$read = @socket_read($socket, $bytes_total - $bytes_read);
-			if ($read === false)
+			// initially read to the length of the header size, then
+			// expand to read more
+			$bytes_total = self::SOCKET_HEADER_SIZE;
+			$bytes_read = 0;
+			$have_header = false;
+			$socket_message = '';
+			while ($bytes_read < $bytes_total)
 			{
-				$this->log('socket_receive error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
-				return false;
+				$read = @socket_read($socket, $bytes_total - $bytes_read);
+				if ($read === false)
+				{
+					$this->log('socket_receive error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+					return false;
+				}
+
+				// blank socket_read means done
+				if ($read == '')
+					break;
+
+				$bytes_read += strlen($read);
+				$socket_message .= $read;
+
+				if (!$have_header && $bytes_read >= self::SOCKET_HEADER_SIZE)
+				{
+					$have_header = true;
+					list($bytes_total) = array_values(unpack('N', $socket_message));
+					$bytes_read = 0;
+					$socket_message = '';
+				}
 			}
 
-			// blank socket_read means done
-			if ($read == '')
-				break;
+			$message = @unserialize($socket_message);
 
-			$bytes_read += strlen($read);
-			$socket_message .= $read;
-
-			if (!$have_header && $bytes_read >= self::SOCKET_HEADER_SIZE)
-			{
-				$have_header = true;
-				list($bytes_total) = array_values(unpack('N', $socket_message));
-				$bytes_read = 0;
-				$socket_message = '';
-			}
+			return $message;
 		}
-
-		$message = @unserialize($socket_message);
-
-		return $message;
 	}
 
 	/**
