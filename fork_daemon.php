@@ -1510,15 +1510,6 @@ class fork_daemon
 	}
 
 	/**
-	 * Run signals sent to the process
-	 */
-	public static function dispatch_signals()
-	{
-		// Run signal handlers
-		pcntl_signal_dispatch();
-	}
-
-	/**
 	 * Send a message from the child to the parent
 	 * @param $result
 	 */
