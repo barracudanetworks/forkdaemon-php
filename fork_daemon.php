@@ -187,8 +187,7 @@ class fork_daemon
 
 	/**
 	 * In the child process, stores the socket to get results back to the parent
-	 *
-	 * @var null
+	 * @var socket
 	 */
 	protected $child_socket_to_parent = null;
 
