@@ -962,8 +962,8 @@ class fork_daemon
 	/**
 	 * Add work to the group of work to be processed
 	 *
-	 * @param mixed array of items to be handed back to child in chunks
-	 * @param string a unique identifier for this work
+	 * @param array $new_work_units mixed array of items to be handed back to child in chunks
+	 * @param string $identifier a unique identifier for this work
 	 * @param int $bucket the bucket to use
 	 * @param bool $sort_queue true to sort the work unit queue
 	 */
@@ -1511,7 +1511,7 @@ class fork_daemon
 
 	/**
 	 * Send a message from the child to the parent
-	 * @param $result
+	 * @param string $result
 	 */
 	public function child_send_result_to_parent($result)
 	{
@@ -1790,7 +1790,9 @@ class fork_daemon
 
 			// send the result to the parent
 			if (is_null($result))
+			{
 				self::socket_send($socket_parent, $result);
+			}
 
 			// delay the child's exit slightly to avoid race conditions
 			usleep(500);
