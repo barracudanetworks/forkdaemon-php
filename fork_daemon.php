@@ -1799,7 +1799,8 @@ class fork_daemon
 			$result = $this->invoke_callback($this->child_function_run[$bucket], $work_unit, false);
 
 			// send the result to the parent
-			self::socket_send($socket_parent, $result);
+			if (is_null($result))
+				self::socket_send($socket_parent, $result);
 
 			// delay the child's exit slightly to avoid race conditions
 			usleep(500);
