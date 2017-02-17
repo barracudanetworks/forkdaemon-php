@@ -1562,60 +1562,55 @@ class fork_daemon
 	 */
 	protected function fetch_results($blocking = true, $timeout = 0, $bucket = self::DEFAULT_BUCKET)
 	{
-		$start = microtime(true);
-		$results = array();
-
-		// loop while there is pending children and pending sockets; this
-		// will break early on timeouts and when not blocking.
-		do
+		declare(ticks = 0)
 		{
-			$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
-			if (is_array($ready_sockets))
-			{
-				foreach ($ready_sockets as $pid => $socket)
-				{
-					// Ensure PID is still on forked_children -- may have been removed if a SIGCHILD occurred. The hope
-					// is that this fixes BNBS-23987.
-					if (!isset($this->forked_children[$pid]))
-					{
-						unset($ready_sockets[$pid]);
-						continue;
-					}
+			$start = microtime(true);
+			$results = array();
 
-					$result = $this->socket_receive($socket);
-					if ($result !== false && (! is_null($result)))
+			// loop while there is pending children and pending sockets; this
+			// will break early on timeouts and when not blocking.
+			do
+			{
+				$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
+				if (is_array($ready_sockets))
+				{
+					foreach ($ready_sockets as $pid => $socket)
 					{
-						$this->forked_children[$pid]['last_active'] = $start;
-						$results[$pid] = $result;
+						$result = $this->socket_receive($socket);
+						if ($result !== false && (! is_null($result)))
+						{
+							$this->forked_children[$pid]['last_active'] = $start;
+							$results[$pid] = $result;
+						}
 					}
 				}
-			}
 
-			// clean up forked children that have stopped and did not have recently
-			// active sockets.
-			foreach ($this->forked_children as $pid => &$child)
-			{
-				if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
+				// clean up forked children that have stopped and did not have recently
+				// active sockets.
+				foreach ($this->forked_children as $pid => &$child)
 				{
-					// close the socket from the parent
-					unset($this->forked_children[$pid]);
+					if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
+					{
+						// close the socket from the parent
+						unset($this->forked_children[$pid]);
+					}
+				}
+				unset($child);
+
+				// check if timed out
+				if ($timeout && (microtime(true) - $start > $timeout))
+					return $results;
+
+				// return null if not blocking and we haven't seen results
+				if (! $blocking)
+				{
+					return $results;
 				}
 			}
-			unset($child);
+			while (count($this->forked_children) > 0);
 
-			// check if timed out
-			if ($timeout && (microtime(true) - $start > $timeout))
-				return $results;
-
-			// return null if not blocking and we haven't seen results
-			if (! $blocking)
-			{
-				return $results;
-			}
+			return $results;
 		}
-		while (count($this->forked_children) > 0);
-
-		return $results;
 	}
 
 	/**
