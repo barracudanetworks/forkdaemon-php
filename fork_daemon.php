@@ -1766,6 +1766,7 @@ class fork_daemon
 
 			// re-seed the random generator to prevent clone from parent
 			srand();
+			mt_srand();
 
 			// child run callback
 			$result = $this->invoke_callback($this->child_function_run[$bucket], $work_unit, false);
