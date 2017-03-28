@@ -99,9 +99,9 @@ class fork_daemon
 	/**
 	 * Function the parent invokes before forking a child
 	 * @access protected
-	 * @var integer $parent_function_prefork
+	 * @var string[] $parent_function_prefork
 	 */
-	protected $parent_function_prefork = '';
+	protected $parent_function_prefork = array();
 
 	/**
 	 * Function the parent invokes when a child is spawned
@@ -184,6 +184,12 @@ class fork_daemon
 	 * @var bool $exit_request_status
 	 */
 	protected $exit_request_status = false;
+
+	/**
+	 * In the child process, stores the socket to get results back to the parent
+	 * @var socket
+	 */
+	protected $child_socket_to_parent = null;
 
 	/**************** SERVER CONTROLS ****************/
 	/**
@@ -530,7 +536,7 @@ class fork_daemon
 	 * @param array names of functions to be called.
 	 * @return bool true if the callback was successfully registered, false if it failed
 	 */
-	public function register_parent_prefork($function_names)
+	public function register_parent_prefork(array $function_names)
 	{
 		$this->parent_function_prefork = $function_names;
 		return true;
@@ -615,7 +621,7 @@ class fork_daemon
 	}
 
 	/**
-	 * Allows the app to set the call back function for when a child process is killed to exceeding its max runtime
+	 * Allows the app to set the call back function for when a child process is killed for exceeding its max runtime
 	 * @access public
 	 * @param string name of function to be called.
 	 * @param int $bucket the bucket to use
@@ -956,12 +962,12 @@ class fork_daemon
 	/**
 	 * Add work to the group of work to be processed
 	 *
-	 * @param mixed array of items to be handed back to child in chunks
-	 * @param string a unique identifier for this work
+	 * @param array $new_work_units mixed array of items to be handed back to child in chunks
+	 * @param string $identifier a unique identifier for this work
 	 * @param int $bucket the bucket to use
 	 * @param bool $sort_queue true to sort the work unit queue
 	 */
-	public function addwork(array $new_work_units, $identifier = '', $bucket = self::DEFAULT_BUCKET, $sort_queue = false)
+	public function addwork($new_work_units, $identifier = '', $bucket = self::DEFAULT_BUCKET, $sort_queue = false)
 	{
 		// ensure bucket is setup before we try to add data to it
 		if (! array_key_exists($bucket, $this->work_units))
@@ -1504,6 +1510,15 @@ class fork_daemon
 	}
 
 	/**
+	 * Send a message from the child to the parent
+	 * @param string $result
+	 */
+	public function child_send_result_to_parent($result)
+	{
+		self::socket_send($this->child_socket_to_parent, $result);
+	}
+
+	/**
 	 * Checks if any changed child sockets are in the bucket.
 	 *
 	 * @param type $bucket The bucket to get results in
@@ -1547,60 +1562,55 @@ class fork_daemon
 	 */
 	protected function fetch_results($blocking = true, $timeout = 0, $bucket = self::DEFAULT_BUCKET)
 	{
-		$start = microtime(true);
-		$results = array();
-
-		// loop while there is pending children and pending sockets; this
-		// will break early on timeouts and when not blocking.
-		do
+		declare(ticks = 0)
 		{
-			$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
-			if (is_array($ready_sockets))
-			{
-				foreach ($ready_sockets as $pid => $socket)
-				{
-					// Ensure PID is still on forked_children -- may have been removed if a SIGCHILD occurred. The hope
-					// is that this fixes BNBS-23987.
-					if (!isset($this->forked_children[$pid]))
-					{
-						unset($ready_sockets[$pid]);
-						continue;
-					}
+			$start = microtime(true);
+			$results = array();
 
-					$result = $this->socket_receive($socket);
-					if ($result !== false && (! is_null($result)))
+			// loop while there is pending children and pending sockets; this
+			// will break early on timeouts and when not blocking.
+			do
+			{
+				$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
+				if (is_array($ready_sockets))
+				{
+					foreach ($ready_sockets as $pid => $socket)
 					{
-						$this->forked_children[$pid]['last_active'] = $start;
-						$results[$pid] = $result;
+						$result = $this->socket_receive($socket);
+						if ($result !== false && (! is_null($result)))
+						{
+							$this->forked_children[$pid]['last_active'] = $start;
+							$results[$pid] = $result;
+						}
 					}
 				}
-			}
 
-			// clean up forked children that have stopped and did not have recently
-			// active sockets.
-			foreach ($this->forked_children as $pid => &$child)
-			{
-				if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
+				// clean up forked children that have stopped and did not have recently
+				// active sockets.
+				foreach ($this->forked_children as $pid => &$child)
 				{
-					// close the socket from the parent
-					unset($this->forked_children[$pid]);
+					if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
+					{
+						// close the socket from the parent
+						unset($this->forked_children[$pid]);
+					}
+				}
+				unset($child);
+
+				// check if timed out
+				if ($timeout && (microtime(true) - $start > $timeout))
+					return $results;
+
+				// return null if not blocking and we haven't seen results
+				if (! $blocking)
+				{
+					return $results;
 				}
 			}
-			unset($child);
+			while (count($this->forked_children) > 0);
 
-			// check if timed out
-			if ($timeout && (microtime(true) - $start > $timeout))
-				return $results;
-
-			// return null if not blocking and we haven't seen results
-			if (! $blocking)
-			{
-				return $results;
-			}
+			return $results;
 		}
-		while (count($this->forked_children) > 0);
-
-		return $results;
 	}
 
 	/**
@@ -1755,6 +1765,9 @@ class fork_daemon
 			$this->forked_children = null;
 			$this->results = null;
 
+			// save the socket from child to parent to support $this->child_send_result_to_parent()
+			$this->child_socket_to_parent = $socket_parent;
+
 			// set child properties
 			$this->child_bucket = $bucket;
 
@@ -1772,7 +1785,10 @@ class fork_daemon
 			$result = $this->invoke_callback($this->child_function_run[$bucket], $work_unit, false);
 
 			// send the result to the parent
-			self::socket_send($socket_parent, $result);
+			if (is_null($result))
+			{
+				self::socket_send($socket_parent, $result);
+			}
 
 			// delay the child's exit slightly to avoid race conditions
 			usleep(500);
@@ -1905,30 +1921,34 @@ class fork_daemon
 	 */
 	protected function socket_send($socket, $message)
 	{
-		$serialized_message = @serialize($message);
-		if ($serialized_message == false)
+		// do not process signals while we are sending an IPC message
+		declare(ticks = 0)
 		{
-			$this->log('socket_send failed to serialize message', self::LOG_LEVEL_CRIT);
-			return false;
-		}
-
-		$header = pack('N', strlen($serialized_message));
-		$data = $header . $serialized_message;
-		$bytes_left = strlen($data);
-		while ($bytes_left > 0)
-		{
-			$bytes_sent = @socket_write($socket, $data);
-			if ($bytes_sent === false)
+			$serialized_message = @serialize($message);
+			if ($serialized_message == false)
 			{
-				$this->log('socket_send error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+				$this->log('socket_send failed to serialize message', self::LOG_LEVEL_CRIT);
 				return false;
 			}
 
-			$bytes_left -= $bytes_sent;
-			$data = substr($data, $bytes_sent);
-		}
+			$header = pack('N', strlen($serialized_message));
+			$data = $header . $serialized_message;
+			$bytes_left = strlen($data);
+			while ($bytes_left > 0)
+			{
+				$bytes_sent = @socket_write($socket, $data);
+				if ($bytes_sent === false)
+				{
+					$this->log('socket_send error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+					return false;
+				}
 
-		return true;
+				$bytes_left -= $bytes_sent;
+				$data = substr($data, $bytes_sent);
+			}
+
+			return true;
+		}
 	}
 
 	/**
@@ -1939,40 +1959,44 @@ class fork_daemon
 	 */
 	protected function socket_receive($socket)
 	{
-		// initially read to the length of the header size, then
-		// expand to read more
-		$bytes_total = self::SOCKET_HEADER_SIZE;
-		$bytes_read = 0;
-		$have_header = false;
-		$socket_message = '';
-		while ($bytes_read < $bytes_total)
+		// do not process signals while we are receiving an IPC message
+		declare(ticks = 0)
 		{
-			$read = @socket_read($socket, $bytes_total - $bytes_read);
-			if ($read === false)
+			// initially read to the length of the header size, then
+			// expand to read more
+			$bytes_total = self::SOCKET_HEADER_SIZE;
+			$bytes_read = 0;
+			$have_header = false;
+			$socket_message = '';
+			while ($bytes_read < $bytes_total)
 			{
-				$this->log('socket_receive error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
-				return false;
+				$read = @socket_read($socket, $bytes_total - $bytes_read);
+				if ($read === false)
+				{
+					$this->log('socket_receive error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+					return false;
+				}
+
+				// blank socket_read means done
+				if ($read == '')
+					break;
+
+				$bytes_read += strlen($read);
+				$socket_message .= $read;
+
+				if (!$have_header && $bytes_read >= self::SOCKET_HEADER_SIZE)
+				{
+					$have_header = true;
+					list($bytes_total) = array_values(unpack('N', $socket_message));
+					$bytes_read = 0;
+					$socket_message = '';
+				}
 			}
 
-			// blank socket_read means done
-			if ($read == '')
-				break;
+			$message = @unserialize($socket_message);
 
-			$bytes_read += strlen($read);
-			$socket_message .= $read;
-
-			if (!$have_header && $bytes_read >= self::SOCKET_HEADER_SIZE)
-			{
-				$have_header = true;
-				list($bytes_total) = array_values(unpack('N', $socket_message));
-				$bytes_read = 0;
-				$socket_message = '';
-			}
+			return $message;
 		}
-
-		$message = @unserialize($socket_message);
-
-		return $message;
 	}
 
 	/**
