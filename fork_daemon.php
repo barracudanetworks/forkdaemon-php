@@ -1318,7 +1318,7 @@ class fork_daemon
 					'identifier' => $identifier,
 					'status' => self::HELPER,
 					'bucket' => self::DEFAULT_BUCKET,
-					'respawn' => true,
+					'respawn' => $respawn,
 					'function' => $function_name,
 					'arguments' => $arguments,
 					'socket' => $socket_child,
