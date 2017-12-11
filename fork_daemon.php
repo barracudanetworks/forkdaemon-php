@@ -1362,6 +1362,7 @@ class fork_daemon
 	 *
 	 * @param int $pids       The child pid to kill.
 	 * @param int $kill_delay How many seconds to wait before sending sig kill on stuck processes.
+	 * @param int $signal     The signal to use to alert the child.
 	 * @return void
 	 * @access public
 	 */
