@@ -1362,14 +1362,24 @@ class fork_daemon
 	 *
 	 * @param int $pids       The child pid to kill.
 	 * @param int $kill_delay How many seconds to wait before sending sig kill on stuck processes.
+	 * @param int $signal     The signal to use to alert the child.
 	 * @return void
 	 * @access public
 	 */
-	public function kill_child_pid($pids, $kill_delay = 30)
+	public function kill_child_pid($pids, $kill_delay = 30, $signal = SIGINT)
 	{
 		if (!is_array($pids))
 		{
 			$pids = array($pids);
+		}
+
+		if ($signal == SIGINT)
+		{
+			$signame = 'sigint';
+		}
+		else
+		{
+			$signame = 'signal ' . $signal;
 		}
 
 		// send int sigs to the children
@@ -1383,7 +1393,7 @@ class fork_daemon
 				continue;
 			}
 
-			$this->safe_kill($pid, SIGINT, 'Asking pid ' . $pid . ' to exit via sigint', self::LOG_LEVEL_INFO);
+			$this->safe_kill($pid, $signal, 'Asking pid ' . $pid . ' to exit via ' . $signame, self::LOG_LEVEL_INFO);
 		}
 
 		// store the requst time
