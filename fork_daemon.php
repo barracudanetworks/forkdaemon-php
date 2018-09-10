@@ -1729,7 +1729,9 @@ class fork_daemon
 			if ($this->child_single_work_item[$bucket])
 			{
 				// break out identifier and unit
-				list($child_identifier, $child_work_unit) = each($child_work_units);
+				$child_identifier = key($child_work_units);
+				$child_work_unit = current($child_work_units);
+				next($child_work_units);
 
 				// strip preceeding 'id-' from the identifier
 				if (strpos($child_identifier, 'id-') === 0)
