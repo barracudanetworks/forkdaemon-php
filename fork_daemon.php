@@ -724,7 +724,7 @@ class fork_daemon
 		self::$parent_pid = getmypid();
 
 		// install signal handlers
-		declare(ticks = 1);
+		pcntl_async_signals(true);
 		pcntl_signal(SIGHUP, array(&$this, 'signal_handler_sighup'));
 		pcntl_signal(SIGCHLD, array(&$this, 'signal_handler_sigchild'));
 		pcntl_signal(SIGTERM, array(&$this, 'signal_handler_sigint'));
@@ -809,7 +809,7 @@ class fork_daemon
 	public function signal_handler_sigchild($signal_number)
 	{
 		// do not allow signals to interrupt this
-		declare(ticks = 0)
+		pcntl_async_signals(false);
 		{
 			// reap all child zombie processes
 			if (self::$parent_pid == getmypid())
@@ -1271,7 +1271,7 @@ class fork_daemon
 			list($socket_child, $socket_parent) = $this->ipc_init();
 
 			// do not process signals while we are forking
-			declare(ticks = 0);
+			pcntl_async_signals(false);
 			$pid = pcntl_fork();
 
 			if ($pid == -1)
@@ -1287,7 +1287,7 @@ class fork_daemon
 				// set child properties
 				$this->child_bucket = self::DEFAULT_BUCKET;
 
-				declare(ticks = 1);
+				pcntl_async_signals(true);
 
 				// close our socket (we only need the one to the parent)
 				socket_close($socket_child);
@@ -1306,7 +1306,7 @@ class fork_daemon
 				 * Parent process
 				 */
 
-				declare(ticks = 1);
+				pcntl_async_signals(true);
 				$this->log('Spawned new helper process with pid ' . $pid, self::LOG_LEVEL_INFO);
 
 				// close our socket (we only need the one to the child)
@@ -1775,7 +1775,7 @@ class fork_daemon
 		list($socket_child, $socket_parent) = $this->ipc_init();
 
 		// turn off signals temporarily to prevent a SIGCHLD from interupting the parent before $this->forked_children is updated
-		declare(ticks = 0);
+		pcntl_async_signals(false);
 
 		// spoon!
 		$pid = pcntl_fork();
@@ -1807,7 +1807,7 @@ class fork_daemon
 			$this->forked_children_count++;
 
 			// turn back on signals now that $this->forked_children has been updated
-			declare(ticks = 1);
+			pcntl_async_signals(true);
 
 			// close our socket (we only need the one to the child)
 			socket_close($socket_parent);
@@ -1833,7 +1833,7 @@ class fork_daemon
 			$this->child_bucket = $bucket;
 
 			// turn signals on for the child
-			declare(ticks = 1);
+			pcntl_async_signals(true);
 
 			// close our socket (we only need the one to the parent)
 			socket_close($socket_child);
