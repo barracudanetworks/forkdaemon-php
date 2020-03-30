@@ -1834,7 +1834,7 @@ class fork_daemon
 				$this->log('Force kill ' . $pid . ' has run too long', self::LOG_LEVEL_INFO);
 
 				// notify app that child process timed out
-				$this->invoke_callback($this->child_function_timeout{$pid_info['bucket']}, array($pid, $pid_info['identifier']), true);
+				$this->invoke_callback($this->child_function_timeout[$pid_info['bucket']], array($pid, $pid_info['identifier']), true);
 
 				$this->safe_kill($pid, SIGKILL); // its probably stuck on something, kill it immediately.
 				sleep(3); // give the child time to die
