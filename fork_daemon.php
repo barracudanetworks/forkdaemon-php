@@ -725,7 +725,7 @@ class fork_daemon
 		self::$parent_pid = getmypid();
 
 		// install signal handlers
-		declare(ticks = 1);
+		pcntl_async_signals(true);
 		pcntl_signal(SIGHUP,  array(&$this, 'signal_handler_sighup'));
 		pcntl_signal(SIGCHLD, array(&$this, 'signal_handler_sigchild'));
 		pcntl_signal(SIGTERM, array(&$this, 'signal_handler_sigint'));
@@ -740,9 +740,6 @@ class fork_daemon
 		pcntl_signal(SIGQUIT, SIG_IGN);
 		pcntl_signal(SIGTRAP, SIG_IGN);
 		pcntl_signal(SIGSYS,  SIG_IGN);
-
-		// add barracuda specific prefork functions (doesn't hurt anything)
-		$this->parent_function_prefork = array('db_clear_connection_cache', 'memcache_clear_connection_cache');
 	}
 
 	/**
@@ -803,60 +800,61 @@ class fork_daemon
 	 */
 	public function signal_handler_sigchild($signal_number)
 	{
-		// do not allow signals to interrupt this
-		declare(ticks = 0)
+		// reap all child zombie processes
+		if (self::$parent_pid == getmypid())
 		{
-			// reap all child zombie processes
-			if (self::$parent_pid == getmypid())
+			// do not allow signals to interrupt this
+			pcntl_async_signals(false);
+
+			$status = '';
+
+			do
 			{
-				$status = '';
-
-				do
+				// get child pid that exited
+				$child_pid = pcntl_waitpid(0, $status, WNOHANG);
+				if ($child_pid > 0)
 				{
-					// get child pid that exited
-					$child_pid = pcntl_waitpid(0, $status, WNOHANG);
-					if ($child_pid > 0)
+					// child exited
+					if (!isset($this->forked_children[$child_pid]))
 					{
-						// child exited
-						$identifier = false;
-						if (!isset($this->forked_children[$child_pid]))
-						{
-							$this->log("Cannot find $child_pid in array! (This may be a subprocess not in our fork)", self::LOG_LEVEL_INFO);
-							continue;
-						}
-
-						$child = $this->forked_children[$child_pid];
-						$identifier = $child['identifier'];
-
-						// call exit function if and only if its declared */
-						if ($child['status'] == self::WORKER)
-							$this->invoke_callback($this->parent_function_child_exited[ $this->forked_children[$child_pid]['bucket'] ], array($child_pid, $this->forked_children[$child_pid]['identifier']), true);
-
-						// stop the child pid
-						$this->forked_children[$child_pid]['status'] = self::STOPPED;
-						$this->forked_children_count--;
-
-						// respawn helper processes
-						if ($child['status'] == self::HELPER && $child['respawn'] === true)
-						{
-							$this->log('Helper process ' . $child_pid . ' died, respawning', self::LOG_LEVEL_INFO);
-							$this->helper_process_spawn($child['function'], $child['arguments'], $child['identifier'], true);
-						}
-
-						// Poll for results from any children
-						$this->post_results($child['bucket']);
+						$this->log("Cannot find $child_pid in array! (This may be a subprocess not in our fork)", self::LOG_LEVEL_INFO);
+						continue;
 					}
-					elseif ($child_pid < 0)
+
+					$child = $this->forked_children[$child_pid];
+					$identifier = $child['identifier'];
+
+					// call exit function if and only if its declared */
+					if ($child['status'] == self::WORKER)
+						$this->invoke_callback($this->parent_function_child_exited[ $this->forked_children[$child_pid]['bucket'] ], array($child_pid, $this->forked_children[$child_pid]['identifier']), true);
+
+					// stop the child pid
+					$this->forked_children[$child_pid]['status'] = self::STOPPED;
+					$this->forked_children_count--;
+
+					// respawn helper processes
+					if ($child['status'] == self::HELPER && $child['respawn'] === true)
 					{
-						// ignore acceptable error 'No child processes' given we force this signal to run potentially when no children exist
-						if (pcntl_get_last_error() == 10) continue;
-
-						// pcntl_wait got an error
-						$this->log('pcntl_waitpid failed with error ' . pcntl_get_last_error() . ':' . pcntl_strerror((pcntl_get_last_error())), self::LOG_LEVEL_DEBUG);
+						$this->log('Helper process ' . $child_pid . ' died, respawning', self::LOG_LEVEL_INFO);
+						$this->helper_process_spawn($child['function'], $child['arguments'], $child['identifier'], true);
 					}
+
+					// Poll for results from any children
+					$this->post_results($child['bucket']);
 				}
-				while ($child_pid > 0);
+				elseif ($child_pid < 0)
+				{
+					// ignore acceptable error 'No child processes' given we force this signal to run potentially when no children exist
+					if (pcntl_get_last_error() == 10) continue;
+
+					// pcntl_wait got an error
+					$this->log('pcntl_waitpid failed with error ' . pcntl_get_last_error() . ':' . pcntl_strerror((pcntl_get_last_error())), self::LOG_LEVEL_DEBUG);
+				}
 			}
+			while ($child_pid > 0);
+
+			// turn signals back on
+			pcntl_async_signals(true);
 		}
 	}
 
@@ -1242,7 +1240,7 @@ class fork_daemon
 			list($socket_child, $socket_parent) = $this->ipc_init();
 
 			// do not process signals while we are forking
-			declare(ticks = 0);
+			pcntl_async_signals(false);
 			$pid = pcntl_fork();
 
 			if ($pid == -1)
@@ -1258,7 +1256,8 @@ class fork_daemon
 				// set child properties
 				$this->child_bucket = self::DEFAULT_BUCKET;
 
-				declare(ticks = 1);
+				// turn signals back on
+				pcntl_async_signals(true);
 
 				// close our socket (we only need the one to the parent)
 				socket_close($socket_child);
@@ -1277,7 +1276,9 @@ class fork_daemon
 				 * Parent process
 				 */
 
-				declare(ticks = 1);
+				// turn signals back on
+				pcntl_async_signals(true);
+
 				$this->log('Spawned new helper process with pid ' . $pid, self::LOG_LEVEL_INFO);
 
 				// close our socket (we only need the one to the child)
@@ -1562,55 +1563,60 @@ class fork_daemon
 	 */
 	protected function fetch_results($blocking = true, $timeout = 0, $bucket = self::DEFAULT_BUCKET)
 	{
-		declare(ticks = 0)
+		// turn signals off while processing results
+		pcntl_async_signals(false);
+
+		$start = microtime(true);
+		$results = array();
+
+		// loop while there is pending children and pending sockets; this
+		// will break early on timeouts and when not blocking.
+		do
 		{
-			$start = microtime(true);
-			$results = array();
-
-			// loop while there is pending children and pending sockets; this
-			// will break early on timeouts and when not blocking.
-			do
+			$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
+			if (is_array($ready_sockets))
 			{
-				$ready_sockets = $this->get_changed_sockets($bucket, $timeout);
-				if (is_array($ready_sockets))
+				foreach ($ready_sockets as $pid => $socket)
 				{
-					foreach ($ready_sockets as $pid => $socket)
+					$result = $this->socket_receive($socket);
+					if ($result !== false && (! is_null($result)))
 					{
-						$result = $this->socket_receive($socket);
-						if ($result !== false && (! is_null($result)))
-						{
-							$this->forked_children[$pid]['last_active'] = $start;
-							$results[$pid] = $result;
-						}
+						$this->forked_children[$pid]['last_active'] = $start;
+						$results[$pid] = $result;
 					}
-				}
-
-				// clean up forked children that have stopped and did not have recently
-				// active sockets.
-				foreach ($this->forked_children as $pid => &$child)
-				{
-					if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
-					{
-						// close the socket from the parent
-						unset($this->forked_children[$pid]);
-					}
-				}
-				unset($child);
-
-				// check if timed out
-				if ($timeout && (microtime(true) - $start > $timeout))
-					return $results;
-
-				// return null if not blocking and we haven't seen results
-				if (! $blocking)
-				{
-					return $results;
 				}
 			}
-			while (count($this->forked_children) > 0);
 
-			return $results;
+			// clean up forked children that have stopped and did not have recently
+			// active sockets.
+			foreach ($this->forked_children as $pid => &$child)
+			{
+				if (isset($child['last_active']) && ($child['last_active'] < $start) && ($child['status'] == self::STOPPED))
+				{
+					// close the socket from the parent
+					unset($this->forked_children[$pid]);
+				}
+			}
+			unset($child);
+
+			// check if timed out
+			if ($timeout && (microtime(true) - $start > $timeout))
+			{
+				pcntl_async_signals(true);
+				return $results;
+			}
+
+			// return null if not blocking and we haven't seen results
+			if (! $blocking)
+			{
+				pcntl_async_signals(true);
+				return $results;
+			}
 		}
+		while (count($this->forked_children) > 0);
+
+		pcntl_async_signals(true);
+		return $results;
 	}
 
 	/**
@@ -1711,7 +1717,7 @@ class fork_daemon
 		list($socket_child, $socket_parent) = $this->ipc_init();
 
 		// turn off signals temporarily to prevent a SIGCHLD from interupting the parent before $this->forked_children is updated
-		declare(ticks = 0);
+		pcntl_async_signals(false);
 
 		// spoon!
 		$pid = pcntl_fork();
@@ -1743,7 +1749,7 @@ class fork_daemon
 			$this->forked_children_count++;
 
 			// turn back on signals now that $this->forked_children has been updated
-			declare(ticks = 1);
+			pcntl_async_signals(true);
 
 			// close our socket (we only need the one to the child)
 			socket_close($socket_parent);
@@ -1772,7 +1778,7 @@ class fork_daemon
 			$this->child_bucket = $bucket;
 
 			// turn signals on for the child
-			declare(ticks = 1);
+			pcntl_async_signals(true);
 
 			// close our socket (we only need the one to the parent)
 			socket_close($socket_child);
@@ -1921,33 +1927,35 @@ class fork_daemon
 	protected function socket_send($socket, $message)
 	{
 		// do not process signals while we are sending an IPC message
-		declare(ticks = 0)
+		pcntl_async_signals(false);
+
+		$serialized_message = @serialize($message);
+		if ($serialized_message == false)
 		{
-			$serialized_message = @serialize($message);
-			if ($serialized_message == false)
+			$this->log('socket_send failed to serialize message', self::LOG_LEVEL_CRIT);
+			pcntl_async_signals(true);
+			return false;
+		}
+
+		$header = pack('N', strlen($serialized_message));
+		$data = $header . $serialized_message;
+		$bytes_left = strlen($data);
+		while ($bytes_left > 0)
+		{
+			$bytes_sent = @socket_write($socket, $data);
+			if ($bytes_sent === false)
 			{
-				$this->log('socket_send failed to serialize message', self::LOG_LEVEL_CRIT);
+				$this->log('socket_send error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+				pcntl_async_signals(true);
 				return false;
 			}
 
-			$header = pack('N', strlen($serialized_message));
-			$data = $header . $serialized_message;
-			$bytes_left = strlen($data);
-			while ($bytes_left > 0)
-			{
-				$bytes_sent = @socket_write($socket, $data);
-				if ($bytes_sent === false)
-				{
-					$this->log('socket_send error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
-					return false;
-				}
-
-				$bytes_left -= $bytes_sent;
-				$data = substr($data, $bytes_sent);
-			}
-
-			return true;
+			$bytes_left -= $bytes_sent;
+			$data = substr($data, $bytes_sent);
 		}
+
+		pcntl_async_signals(true);
+		return true;
 	}
 
 	/**
@@ -1959,43 +1967,44 @@ class fork_daemon
 	protected function socket_receive($socket)
 	{
 		// do not process signals while we are receiving an IPC message
-		declare(ticks = 0)
+		pcntl_async_signals(false);
+
+		// initially read to the length of the header size, then
+		// expand to read more
+		$bytes_total = self::SOCKET_HEADER_SIZE;
+		$bytes_read = 0;
+		$have_header = false;
+		$socket_message = '';
+		while ($bytes_read < $bytes_total)
 		{
-			// initially read to the length of the header size, then
-			// expand to read more
-			$bytes_total = self::SOCKET_HEADER_SIZE;
-			$bytes_read = 0;
-			$have_header = false;
-			$socket_message = '';
-			while ($bytes_read < $bytes_total)
+			$read = @socket_read($socket, $bytes_total - $bytes_read);
+			if ($read === false)
 			{
-				$read = @socket_read($socket, $bytes_total - $bytes_read);
-				if ($read === false)
-				{
-					$this->log('socket_receive error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
-					return false;
-				}
-
-				// blank socket_read means done
-				if ($read == '')
-					break;
-
-				$bytes_read += strlen($read);
-				$socket_message .= $read;
-
-				if (!$have_header && $bytes_read >= self::SOCKET_HEADER_SIZE)
-				{
-					$have_header = true;
-					list($bytes_total) = array_values(unpack('N', $socket_message));
-					$bytes_read = 0;
-					$socket_message = '';
-				}
+				$this->log('socket_receive error: ' . socket_strerror(socket_last_error()), self::LOG_LEVEL_CRIT);
+				pcntl_async_signals(true);
+				return false;
 			}
 
-			$message = @unserialize($socket_message);
+			// blank socket_read means done
+			if ($read == '')
+				break;
 
-			return $message;
+			$bytes_read += strlen($read);
+			$socket_message .= $read;
+
+			if (!$have_header && $bytes_read >= self::SOCKET_HEADER_SIZE)
+			{
+				$have_header = true;
+				list($bytes_total) = array_values(unpack('N', $socket_message));
+				$bytes_read = 0;
+				$socket_message = '';
+			}
 		}
+
+		$message = @unserialize($socket_message);
+
+		pcntl_async_signals(true);
+		return $message;
 	}
 
 	/**

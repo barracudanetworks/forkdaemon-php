@@ -6,7 +6,7 @@
     "homepage": "https://github.com/barracudanetworks/forkdaemon-php",
     "license": "MIT",
     "require": {
-        "php": ">=5.3.0"
+        "php": ">=7.1"
     },
     "autoload": {
         "classmap": [ "fork_daemon.php" ]
