@@ -1256,6 +1256,9 @@ class fork_daemon
 				// set child properties
 				$this->child_bucket = self::DEFAULT_BUCKET;
 
+				// save the socket from child to parent to support $this->child_send_result_to_parent()
+				$this->child_socket_to_parent = $socket_parent;
+
 				// turn signals back on
 				pcntl_async_signals(true);
 
