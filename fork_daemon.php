@@ -1631,6 +1631,8 @@ class fork_daemon
 	 * post any results that are available, so call while children are running
 	 * to check and post more results.
 	 *
+	 * The callback will run for every child that return results
+	 *
 	 * NOTE: This should be polled to update results.
 	 *
 	 * @param type $bucket The bucket to post the results in
@@ -1647,8 +1649,11 @@ class fork_daemon
 
 		if (! empty($this->parent_function_results[$bucket]))
 		{
-			if ($this->invoke_callback($this->parent_function_results[$bucket], array($results), true) === false)
-				return false;
+			foreach ($results as $pid => $result)
+			{
+				if ($this->invoke_callback($this->parent_function_results[$bucket], array($result, $this->forked_children[$pid]['identifier']), true) === false)
+					return false;
+			}
 		}
 		elseif ($this->store_result === true)
 		{
