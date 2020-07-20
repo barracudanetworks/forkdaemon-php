@@ -1265,6 +1265,9 @@ class fork_daemon
 				// close our socket (we only need the one to the parent)
 				socket_close($socket_child);
 
+				// re-seed the random generator to prevent clone from parent
+				srand();
+
 				// execute the function
 				$result = call_user_func_array($function_name, $arguments);
 
