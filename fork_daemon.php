@@ -265,6 +265,16 @@ class fork_daemon
 	 */
 	protected $housekeeping_last_check = 0;
 
+	/**
+	 * Whether to free unused memory in the child process after fork.
+	 * Setting this to false can avoid an expensive garbage collection
+	 * in situations with a short-lived child process and a large work
+	 * list.  By default, free this memory.
+	 * @access protected
+	 * @var bool $free_unused_memory_in_child
+	 */
+	protected $free_unused_memory_in_child = true;
+
 	// **************** FUNCTION DEFINITIONS  ****************/
 
 	/**
@@ -277,6 +287,19 @@ class fork_daemon
 	public function getForkedChildren()
 	{
 		return $this->forked_children;
+	}
+
+	/**
+	 * Calling this function will prevent the child from freeing
+	 * the work_list and other work tracking variables.  Normally
+	 * these are freed immediately since the forked child process
+	 * has no need of them, but in some cases (like when the child
+	 * calls pcntl_exec after forking) the triggered garbage
+	 * collection may negatively impact performance with no benefit.
+	 */
+	public function disable_child_memory_cleanup()
+	{
+		$this->free_unused_memory_in_child = false;
 	}
 
 	/**
@@ -1824,10 +1847,13 @@ class fork_daemon
 			 * Child Process
 			 */
 
-			// free up unneeded parent memory for child process
-			$this->work_units = null;
-			$this->forked_children = null;
-			$this->results = null;
+			if($this->free_unused_memory_in_child)
+			{
+				// free up unneeded parent memory for child process
+				$this->work_units = null;
+				$this->forked_children = null;
+				$this->results = null;
+			}
 
 			// set child properties
 			$this->child_bucket = $bucket;
